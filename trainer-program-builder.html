@@ -5,27 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Program Builder — IronPump</title>
 
-   <!-- Firebase + Auth Guard -->
-   <script type="module" src="firebase-init.js"></script>
-   <script type="module" src="auth-guard.js"></script>
-   
-  <!-- Tailwind + Feather -->
+  <!-- Firebase (modular) + Auth Guard -->
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="auth-guard.js"></script>
+
+  <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase (compat to match your stack) -->
+  <!-- Firebase compat (this page uses firebase.* compat APIs) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 
-  <!-- Auth guard (your existing file) -->
-  <script src="auth-guard.js"></script>
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    :root{
-      --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2;
-    }
+    :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
     html,body{height:100%}
     body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
     .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
@@ -48,11 +43,15 @@
   <header class="panel p-4">
     <div class="container mx-auto flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <a href="trainer-dashboard.html" class="p-2 rounded-full hover:bg-[#1e1e1e]" title="Back to Trainer Dashboard"><i data-feather="arrow-left" class="accent-text"></i></a>
+        <a href="trainer-dashboard.html" class="p-2 rounded-full hover:bg-[#1e1e1e]" title="Back to Trainer Dashboard">
+          <i data-feather="arrow-left" class="accent-text"></i>
+        </a>
         <h1 class="text-xl font-bold">Program <span class="accent-text">Builder</span></h1>
       </div>
       <div class="flex items-center gap-2">
-        <button class="btn-ghost px-3 py-2 rounded-lg" onclick="AuthGuard.signOut()"><i data-feather="log-out" class="inline mr-1"></i>Sign out</button>
+        <button class="btn-ghost px-3 py-2 rounded-lg" onclick="AuthGuard.signOut()">
+          <i data-feather="log-out" class="inline mr-1"></i>Sign out
+        </button>
       </div>
     </div>
   </header>
@@ -64,9 +63,7 @@
       <section class="panel rounded-xl p-4 lg:col-span-1">
         <h2 class="font-semibold mb-3">Exercises</h2>
 
-        <div class="flex flex-wrap gap-2 mb-3" id="categoryTabs">
-          <!-- tabs injected -->
-        </div>
+        <div class="flex flex-wrap gap-2 mb-3" id="categoryTabs"></div>
 
         <div class="flex items-center gap-2 mb-3">
           <input id="searchInput" class="card px-3 py-2 rounded-lg text-sm w-full" placeholder="Search exercise…">
@@ -80,9 +77,7 @@
           </button>
         </div>
 
-        <div id="exerciseList" class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-          <!-- list injected -->
-        </div>
+        <div id="exerciseList" class="space-y-2 max-h-[60vh] overflow-y-auto pr-1"></div>
       </section>
 
       <!-- Right: Program Canvas -->
@@ -95,22 +90,28 @@
               <input id="templateName" class="card px-3 py-2 rounded-lg w-full" placeholder="e.g., 4-Day Upper/Lower">
             </div>
             <div class="grid grid-cols-2 gap-2">
-              <button id="addDayBtn" class="btn-ghost px-3 py-2 rounded-lg"><i data-feather="plus" class="inline mr-1"></i>Add Day</button>
-              <button id="exportJsonBtn" class="btn-ghost px-3 py-2 rounded-lg"><i data-feather="download" class="inline mr-1"></i>Export JSON</button>
+              <button id="addDayBtn" class="btn-ghost px-3 py-2 rounded-lg">
+                <i data-feather="plus" class="inline mr-1"></i>Add Day
+              </button>
+              <button id="exportJsonBtn" class="btn-ghost px-3 py-2 rounded-lg">
+                <i data-feather="download" class="inline mr-1"></i>Export JSON
+              </button>
             </div>
           </div>
           <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-            <button id="saveTemplateBtn" class="btn-accent px-3 py-2 rounded-lg"><i data-feather="save" class="inline mr-1"></i>Save Template</button>
+            <button id="saveTemplateBtn" class="btn-accent px-3 py-2 rounded-lg">
+              <i data-feather="save" class="inline mr-1"></i>Save Template
+            </button>
             <input id="assignEmail" class="card px-3 py-2 rounded-lg" placeholder="Assign to client (email)">
-            <button id="assignBtn" class="btn-ghost px-3 py-2 rounded-lg"><i data-feather="user-check" class="inline mr-1"></i>Assign to Client</button>
+            <button id="assignBtn" class="btn-ghost px-3 py-2 rounded-lg">
+              <i data-feather="user-check" class="inline mr-1"></i>Assign to Client
+            </button>
           </div>
           <div id="actionMsg" class="text-sm mt-2"></div>
         </div>
 
         <!-- Days canvas -->
-        <div id="daysWrap" class="grid grid-cols-1 gap-4">
-          <!-- day cards injected -->
-        </div>
+        <div id="daysWrap" class="grid grid-cols-1 gap-4"></div>
       </section>
     </div>
   </main>
@@ -142,7 +143,7 @@
           </div>
         </div>
 
-        <!-- NEW: Time & Tempo -->
+        <!-- Time & Tempo -->
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="text-sm text-muted">Time</label>
@@ -167,16 +168,31 @@
   </div>
 
   <script>
-    // Init + guard
+    feather.replace();
+
+    /* ---------------- Compat Firebase init guard ---------------- */
+    const firebaseConfig = {
+      apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
+      authDomain: "ironpump-gym-tracker.firebaseapp.com",
+      projectId: "ironpump-gym-tracker",
+      storageBucket: "ironpump-gym-tracker.firebasestorage.app",
+      messagingSenderId: "267000647709",
+      appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
+      measurementId: "G-BG3TDDWXZH"
+    };
+    if (!firebase.apps?.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    /* ---------------- Auth guard (role: trainer) ---------------- */
     AuthGuard.init();
     AuthGuard.requireRole('trainer');
+
     const db = firebase.firestore();
     let currentUser = null;
     AuthGuard.onAuth(async (user)=>{ currentUser = user; });
 
-    feather.replace();
-
-    // ---------- Exercise Catalog ----------
+    /* ---------------- Exercise Catalog ---------------- */
     const CATALOG = {
       "Chest": [
         "Barbell Bench Press","Incline Barbell Press","Decline Barbell Press","Dumbbell Flat Bench Press",
@@ -237,7 +253,7 @@
       ]
     };
 
-    // ---------- UI: Categories / Search ----------
+    /* ---------------- UI: Categories / Search ---------------- */
     const categoryTabs = document.getElementById('categoryTabs');
     const exerciseList = document.getElementById('exerciseList');
     const searchInput  = document.getElementById('searchInput');
@@ -245,6 +261,7 @@
 
     const CATS = Object.keys(CATALOG);
     let activeCat = CATS[0];
+
     function renderTabs(){
       categoryTabs.innerHTML = CATS.map(cat =>
         `<button class="tab ${cat===activeCat?'active':''}" data-cat="${cat}">${cat}</button>`
@@ -286,7 +303,7 @@
       renderExercises();
     });
 
-    // ---------- Program model ----------
+    /* ---------------- Program model ---------------- */
     let program = {
       name: "",
       days: [
@@ -309,8 +326,8 @@
         sets: 3,
         reps: "10–15",
         rest: "60–90s",
-        time: "",       // NEW
-        tempo: "",      // NEW
+        time: "",
+        tempo: "",
         notes: ""
       });
       renderDays();
@@ -374,8 +391,8 @@
     const editSets  = document.getElementById('editSets');
     const editReps  = document.getElementById('editReps');
     const editRest  = document.getElementById('editRest');
-    const editTime  = document.getElementById('editTime');   // NEW
-    const editTempo = document.getElementById('editTempo');  // NEW
+    const editTime  = document.getElementById('editTime');
+    const editTempo = document.getElementById('editTempo');
     const editNotes = document.getElementById('editNotes');
 
     function openEdit(dayIdx, rowIdx){
@@ -398,8 +415,8 @@
       row.sets = Number(editSets.value||3);
       row.reps = editReps.value||'';
       row.rest = editRest.value||'';
-      row.time = editTime.value||'';      // NEW
-      row.tempo= editTempo.value||'';     // NEW
+      row.time = editTime.value||'';
+      row.tempo= editTempo.value||'';
       row.notes= editNotes.value||'';
       editModal.classList.add('hidden');
       renderDays();
@@ -444,7 +461,6 @@
                       ${ex.tempo?`<span class="pill">Tempo: ${escapeHtml(ex.tempo)}</span>`:''}
                     </div>
                     <div class="flex items-center gap-2">
-                      <!-- Quick Add/Edit for Time & Tempo -->
                       ${
                         ex.time
                           ? `<button class="btn-ghost px-2 py-1 rounded-lg" title="Edit Time" onclick="setTime(${i},${r})"><i data-feather="clock"></i></button>
@@ -473,6 +489,7 @@
       `).join('');
       feather.replace();
     }
+
     // expose helpers
     window.addToDay = addToDay;
     window.moveDay = moveDay;
@@ -486,7 +503,7 @@
 
     renderDays();
 
-    // ---------- Save / Assign / Export ----------
+    /* ---------------- Save / Assign / Export ---------------- */
     const actionMsg = document.getElementById('actionMsg');
     function setMsg(msg, ok=true){
       actionMsg.className = 'text-sm mt-2 ' + (ok?'text-green-400':'text-red-400');
@@ -505,8 +522,8 @@
           name: program.name,
           days: program.days,
           trainerId: currentUser.uid,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          updatedAt: firebase.firestore.Timestamp.now(),
+          createdAt: firebase.firestore.Timestamp.now()
         };
         const ref = await db.collection('program_templates').doc(currentUser.uid)
           .collection('items').add(payload);
@@ -534,7 +551,7 @@
           name: program.name || templateName.value.trim() || 'Program',
           days: program.days,
           assignedBy: currentUser.uid,
-          assignedAt: firebase.firestore.FieldValue.serverTimestamp()
+          assignedAt: firebase.firestore.Timestamp.now()
         };
 
         await db.collection('programs').doc(clientUid).collection('assigned').doc('active').set(toAssign);
@@ -551,7 +568,7 @@
       a.click();
     });
 
-    // ---------- Helpers ----------
+    /* ---------------- Helpers ---------------- */
     function escapeHtml(s){
       return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
     }

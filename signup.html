@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sign Up — IronPump</title>
 
+  <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-   <!-- Firebase + Auth Guard -->
-   <script type="module" src="firebase-init.js"></script>
-   
-  <!-- Firebase compat SDKs (best for plain HTML/GitHub Pages) -->
+  <!-- (Optional) If you already include this elsewhere, it's fine; init is guarded below -->
+  <script type="module" src="firebase-init.js"></script>
+
+  <!-- Firebase compat SDKs (good for static hosting like GitHub Pages) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
@@ -19,38 +20,25 @@
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    :root{
-      --accent:#97FB57;   /* neon green */
-      --bg:#121212;       /* near-black */
-      --muted:#909090;    /* gray */
-      --light:#F6F2F2;    /* off-white */
-    }
+    :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
     html,body{ height:100%; }
-    body{
-      font-family:'Inter',sans-serif;
-      background:var(--bg);
-      color:var(--light);
-    }
+    body{ font-family:'Inter',sans-serif; background:var(--bg); color:var(--light); }
     .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
     .card { background:#171717; border:1px solid rgba(144,144,144,0.35); }
     .accent-text{ color:var(--accent); }
     .text-muted{ color:var(--muted); }
     .btn-accent{
-      background:var(--accent);
-      color:var(--bg);
+      background:var(--accent); color:var(--bg);
       box-shadow:0 0 12px rgba(151,251,87,0.45), inset 0 0 0 1px rgba(18,18,18,0.4);
       transition:filter .15s ease, transform .05s ease;
     }
     .btn-accent:hover{ filter:brightness(.95); }
     .btn-accent:active{ transform:translateY(1px); }
     .btn-ghost{
-      background:#232323;
-      color:var(--light);
-      border:1px solid rgba(144,144,144,0.35);
+      background:#232323; color:var(--light); border:1px solid rgba(144,144,144,0.35);
       transition:background .15s ease, transform .05s ease;
     }
     .btn-ghost:hover{ background:#2a2a2a; }
-
     .input{
       width:100%; padding:.6rem .75rem; border-radius:.75rem;
       background:#1e1e1e; border:1px solid rgba(144,144,144,.35); outline:none;
@@ -182,7 +170,7 @@
   <script>
     feather.replace();
 
-    // ---- Firebase init (your config) ----
+    // ---- Firebase init (guard against double init) ----
     const firebaseConfig = {
       apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
       authDomain: "ironpump-gym-tracker.firebaseapp.com",
@@ -192,12 +180,13 @@
       appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
       measurementId: "G-BG3TDDWXZH"
     };
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
     const auth = firebase.auth();
     const db = firebase.firestore();
     const storage = firebase.storage();
 
-    // If already signed in, go to index
+    // If already signed in, head to index
     auth.onAuthStateChanged(u => { if(u) location.href = 'index.html'; });
 
     // UI refs
@@ -266,27 +255,24 @@
           await cred.user.updateProfile({ displayName: fullName || '' });
         }
 
-        // 3) Save profile in Firestore
+        // 3) Save profile in Firestore (field names aligned with trainer-dashboard)
         await db.collection('users').doc(uid).set({
           role: 'client',
           email,
           fullName,
           phone,
           age,
-          heightCm: height,
-          weightKg: weight,
+          height,                 // <— matches dashboard
+          weight,                 // <— matches dashboard
           country,
           languages: languages ? languages.split(',').map(s=>s.trim()).filter(Boolean) : [],
-          trainingLocation: where,    // "home" | "gym"
+          trainingPlace: where,   // <— matches dashboard (not "trainingLocation")
           daysPerWeek: days,
-          extra,
+          additionalInfo: extra,  // <— matches dashboard (not "extra")
           photoURL,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-
-        // Optional: starter doc for logs container (not required)
-        // await db.collection('users').doc(uid).collection('meta').doc('init').set({ created:true });
 
         showSuccess('Account created! Redirecting…');
         setTimeout(()=> location.href = 'index.html', 700);

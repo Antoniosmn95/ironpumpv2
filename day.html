@@ -8,9 +8,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-   <!-- Firebase + Auth Guard -->
-   <script type="module" src="firebase-init.js"></script>
-   <script type="module" src="auth-guard.js"></script>
+  <!-- Firebase + (optional) Auth Guard -->
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="auth-guard.js"></script>
 
   <!-- PDF libs -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -20,24 +20,15 @@
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
     :root{
-      --accent:#97FB57;   /* neon green */
-      --bg:#121212;       /* near-black */
-      --muted:#909090;    /* mid gray */
-      --light:#F6F2F2;    /* off-white */
+      --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2;
     }
     html,body{ height:100%; }
-    body{
-      font-family:'Inter',sans-serif;
-      background:var(--bg);
-      color:var(--light);
-    }
+    body{ font-family:'Inter',sans-serif; background:var(--bg); color:var(--light); }
 
-    /* Surfaces */
     .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
     .card{ background:#171717; border:1px solid rgba(144,144,144,0.35); }
     .subtle{ background:#141414; }
 
-    /* Accent */
     .accent-text{ color:var(--accent); }
     .accent-chip{
       background:rgba(151,251,87,0.12);
@@ -45,16 +36,14 @@
       border:1px solid rgba(151,251,87,0.45);
     }
     .btn-accent{
-      background:var(--accent);
-      color:var(--bg);
+      background:var(--accent); color:var(--bg);
       box-shadow:0 0 12px rgba(151,251,87,0.45), inset 0 0 0 1px rgba(18,18,18,0.4);
       transition:filter .15s ease, transform .05s ease;
     }
     .btn-accent:hover{ filter:brightness(.95); }
     .btn-accent:active{ transform:translateY(1px); }
     .btn-ghost{
-      background:#232323;
-      color:var(--light);
+      background:#232323; color:var(--light);
       border:1px solid rgba(144,144,144,0.35);
       transition:background .15s ease, transform .05s ease;
     }
@@ -68,7 +57,6 @@
       transition:all .3s ease;
       box-shadow:0 0 24px rgba(151,251,87,.35), inset 0 0 0 2px rgba(18,18,18,.4);
     }
-
     a.link{ color:var(--accent); text-decoration:underline; }
   </style>
 </head>
@@ -84,10 +72,10 @@
           <h1 id="dayTitle" class="text-xl font-bold">Day — <span class="accent-text">Loading…</span></h1>
         </div>
         <div class="flex gap-2">
-          <button id="prevBtn" class="btn-ghost px-3 py-2 rounded-lg flex items-center" title="Previous day">
+          <button id="prevBtn" class="btn-ghost px-3 py-2 rounded-lg flex items-center" title="Previous day" disabled>
             <i data-feather="chevron-left" class="mr-1"></i> Prev
           </button>
-          <button id="nextBtn" class="btn-ghost px-3 py-2 rounded-lg flex items-center" title="Next day">
+          <button id="nextBtn" class="btn-ghost px-3 py-2 rounded-lg flex items-center" title="Next day" disabled>
             Next <i data-feather="chevron-right" class="ml-1"></i>
           </button>
         </div>
@@ -132,19 +120,10 @@
     </div>
   </div>
 
-  <!-- Firebase init (your config & initializeApp) -->
-  <script type="module" src="firebase-init.js"></script>
-  <!-- Optional: block unauthenticated access -->
-  <!-- <script type="module" src="auth-guard.js"></script> -->
-
   <!-- App logic -->
   <script type="module">
-    import {
-      getAuth, onAuthStateChanged
-    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
-    import {
-      getFirestore, doc, collection, getDoc, addDoc, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+    import { getFirestore, doc, collection, getDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
     const auth = getAuth();
     const db   = getFirestore();
@@ -156,7 +135,8 @@
     }
     let DAY_INDEX = getDayParam();
 
-    function fmtReps(x){ return (x ?? '').toString().replace('-', '–'); }
+    const asStr = (x)=> (x ?? '').toString();
+    function fmtReps(x){ return asStr(x).replace('-', '–'); }
 
     function showStatus(html, type='info'){
       const box = document.getElementById('statusBox');
@@ -171,7 +151,6 @@
         </div>`;
       feather.replace();
     }
-
     function clearStatus(){
       const box = document.getElementById('statusBox');
       box.classList.add('hidden');
@@ -184,10 +163,10 @@
       const ref = doc(collection(doc(collection(db,'programs'), uid), 'assigned'), 'active');
       const snap = await getDoc(ref);
       if(!snap.exists()) return null;
-      return snap.data(); // { name, days: [{label, exercises:[{name, sets, reps, rest, note}]}] }
+      return snap.data(); // { name, days: [{label, exercises:[{name, sets, reps, rest, time, tempo, expectedWeight, notes}]}] }
     }
 
-    // --- Render ---
+    // --- Render stubs ---
     function renderEmpty(){
       document.getElementById('dayTitle').innerHTML = `Day — <span class="accent-text">No Program</span>`;
       document.getElementById('exWrap').innerHTML = `
@@ -209,45 +188,93 @@
         </div>`;
     }
 
+    // Build header chips based on fields the trainer set
+    function buildMetaChips(ex){
+      const chips = [];
+      const sets = Number(ex.sets) || 3;
+      chips.push(`<span class="accent-chip px-2 py-1 rounded-full text-xs font-medium">${sets} sets</span>`);
+
+      const reps = asStr(ex.reps).trim();
+      if (reps) chips.push(`<span class="accent-chip px-2 py-1 rounded-full text-xs font-medium">Reps: ${fmtReps(reps)}</span>`);
+
+      const time = asStr(ex.time).trim();
+      if (time) chips.push(`<span class="accent-chip px-2 py-1 rounded-full text-xs font-medium">Time: ${time}</span>`);
+
+      const tempo = asStr(ex.tempo).trim();
+      if (tempo) chips.push(`<span class="accent-chip px-2 py-1 rounded-full text-xs font-medium">Tempo: ${tempo}</span>`);
+
+      const expectedW = asStr(ex.expectedWeight || ex.weight || ex.targetWeight).trim();
+      if (expectedW) chips.push(`<span class="accent-chip px-2 py-1 rounded-full text-xs font-medium">Weight: ${expectedW} kg</span>`);
+
+      return chips.join(' ');
+    }
+
     function exerciseCard(idx, ex) {
       const sets = Number(ex.sets) || 3;
+      const restSec = Number(ex.rest) || 90;
+
+      // what did the trainer specify?
+      const targetReps = asStr(ex.reps).trim();                // e.g., "8–10"
+      const targetTime = asStr(ex.time).trim();                // e.g., "45s" or "1:00"
+      const targetTempo= asStr(ex.tempo).trim();               // e.g., "3-1-2-0"
+      const targetWeight = asStr(ex.expectedWeight || ex.weight || ex.targetWeight).trim();
+
+      // placeholders for inputs (only hints; user still logs real values)
+      const weightPlaceholder = targetWeight ? `target kg ${targetWeight}` : '';
+      const repsPlaceholder   = targetReps   ? `target reps ${fmtReps(targetReps)}` : (targetTime ? 'time-based' : '');
+
+      // which inputs are REQUIRED to complete?
+      const requireWeight = !!targetWeight;        // trainer set a weight
+      const requireReps   = !!targetReps;          // trainer set reps
+      const timeOnlyMode  = !!(targetTime && !targetReps && !targetWeight);
+
       let setsHtml = '';
       for (let s = 1; s <= sets; s++) {
         setsHtml += `
           <div class="set-container ${s < sets ? 'border-b divider pb-4' : ''}">
             <div class="flex justify-between items-center mb-2">
               <h3 class="font-medium">Set ${s}</h3>
-              <button class="rest-btn btn-ghost px-3 py-1 rounded-lg text-sm flex items-center" data-rest>
-                <i data-feather="clock" class="mr-1 w-4 h-4 accent-text"></i> Rest ${(ex.rest || 90)}s
+              <button class="rest-btn btn-ghost px-3 py-1 rounded-lg text-sm flex items-center" data-rest="${restSec}">
+                <i data-feather="clock" class="mr-1 w-4 h-4 accent-text"></i> Rest ${restSec}s
               </button>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium mb-1">Weight (kg)</label>
-                <input type="number" class="w-full px-3 py-2 card rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" data-weight>
+                <label class="block text-sm font-medium mb-1">Weight (kg) ${requireWeight ? '<span class="text-red-400">*</span>' : ''}</label>
+                <input type="number" class="w-full px-3 py-2 card rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" data-weight placeholder="${weightPlaceholder}">
               </div>
               <div>
-                <label class="block text-sm font-medium mb-1">Reps</label>
-                <input type="number" class="w-full px-3 py-2 card rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" data-reps>
+                <label class="block text-sm font-medium mb-1">Reps ${requireReps ? '<span class="text-red-400">*</span>' : ''}</label>
+                <input type="number" class="w-full px-3 py-2 card rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" data-reps placeholder="${repsPlaceholder}">
               </div>
             </div>
           </div>`;
       }
-      const meta = `<span class="accent-chip px-2 py-1 rounded-full text-xs font-medium">${sets} sets | ${fmtReps(ex.reps) || '—'} reps</span>`;
-      const note = ex.note ? `<span class="text-sm text-muted"> — Note: ${ex.note}</span>` : '';
+
+      const planNote = (ex.note || ex.notes) ? `<div class="text-sm text-muted mt-1">Note: ${ex.note || ex.notes}</div>` : '';
+
       return `
-        <section class="panel rounded-xl shadow-md p-6" data-exercise data-index="${idx}">
-          <div class="flex justify-between items-center mb-2">
-            <h2 class="text-lg font-semibold">${idx + 1}. ${ex.name || 'Exercise'}${note}</h2>
-            ${meta}
+        <section class="panel rounded-xl shadow-md p-6" data-exercise data-index="${idx}"
+                 data-require-weight="${requireWeight ? '1':'0'}"
+                 data-require-reps="${requireReps ? '1':'0'}"
+                 data-time-only="${timeOnlyMode ? '1':'0'}">
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <h2 class="text-lg font-semibold">${idx + 1}. ${ex.name || 'Exercise'}</h2>
+              ${planNote}
+            </div>
+            <div class="flex flex-wrap gap-1 justify-end">${buildMetaChips(ex)}</div>
           </div>
+
           <div class="mb-4">
             <textarea class="w-full px-3 py-2 card rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-sm placeholder:opacity-70"
-                      rows="2" placeholder="Notes for this exercise..." data-notes></textarea>
+                      rows="2" placeholder="Your notes for this exercise…" data-notes></textarea>
           </div>
+
           <div class="space-y-4 mb-6">${setsHtml}</div>
+
           <button class="finish-exercise-btn w-full btn-ghost py-3 rounded-lg font-medium disabled:opacity-50 transition" disabled data-finish>
-            Complete all sets to finish exercise
+            Complete required fields to finish exercise
           </button>
         </section>`;
     }
@@ -266,8 +293,10 @@
       feather.replace();
 
       // Prev/Next enable/disable
-      document.getElementById('prevBtn').disabled = (dayIndex <= 1);
-      document.getElementById('nextBtn').disabled = (dayIndex >= totalDays);
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      prevBtn.disabled = (dayIndex <= 1);
+      nextBtn.disabled = (dayIndex >= totalDays);
 
       // Progress + completion handlers
       const progressFill = document.getElementById('progressFill');
@@ -281,31 +310,58 @@
         if(done.size > 0) sticky.classList.remove('hidden');
       }
 
-      // Enable finish buttons when all inputs populated for a card
+      // Validation: only require what the trainer set (reps/weight), or allow either if neither set; if time-only, nothing required.
+      function cardIsComplete(card){
+        const requireWeight = card.dataset.requireWeight === '1';
+        const requireReps   = card.dataset.requireReps === '1';
+        const timeOnly      = card.dataset.timeOnly === '1';
+
+        if (timeOnly) return true; // e.g., planks for time
+
+        const weights = [...card.querySelectorAll('[data-weight]')];
+        const reps    = [...card.querySelectorAll('[data-reps]')];
+
+        const allWeights = weights.every(i => i.value !== '');
+        const allReps    = reps.every(i => i.value !== '');
+
+        if (requireWeight && requireReps) return allWeights && allReps;
+        if (requireWeight && !requireReps) return allWeights;
+        if (!requireWeight && requireReps) return allReps;
+
+        // neither required -> allow EITHER reps or weight per set
+        const eachSetOk = weights.every((w, idx) => (w.value !== '' || reps[idx].value !== ''));
+        return eachSetOk;
+      }
+
+      // live input validation
       wrap.addEventListener('input', e => {
         const card = e.target.closest('[data-exercise]');
         if(!card) return;
-        const weights = [...card.querySelectorAll('[data-weight]')];
-        const reps    = [...card.querySelectorAll('[data-reps]')];
-        const allFilled = weights.every(i => i.value !== '') && reps.every(i => i.value !== '');
         const finishBtn = card.querySelector('[data-finish]');
-        finishBtn.disabled = !allFilled;
-        if(allFilled){
+        const ok = cardIsComplete(card);
+        finishBtn.disabled = !ok;
+        if(ok){
           finishBtn.classList.remove('btn-ghost'); finishBtn.classList.add('btn-accent');
           finishBtn.textContent='Finish Exercise';
         } else {
           finishBtn.classList.add('btn-ghost'); finishBtn.classList.remove('btn-accent');
-          finishBtn.textContent='Complete all sets to finish exercise';
+          finishBtn.textContent='Complete required fields to finish exercise';
         }
       });
 
+      // rest & finish actions
       wrap.addEventListener('click', e => {
-        const rest = e.target.closest('[data-rest]');
-        if(rest) { openTimer(dayObj.exercises?.[0]?.rest || 90); return; }
+        const restBtn = e.target.closest('[data-rest]');
+        if (restBtn) {
+          const sec = Number(restBtn.dataset.rest) || 90;
+          openTimer(sec);
+          return;
+        }
 
         const btn = e.target.closest('[data-finish]');
         if(!btn) return;
         const card = btn.closest('[data-exercise]');
+        if (btn.disabled) return;
         const idx = Number(card.dataset.index);
         done.add(idx);
         btn.disabled = true;
@@ -343,6 +399,10 @@
 
         showStatus(`Logged <b>${label}</b> for <b>${iso}</b>. Check your calendar on the index page.`, 'info');
       };
+
+      // Wire prev/next with correct bounds
+      prevBtn.onclick = () => goDay(-1, totalDays);
+      nextBtn.onclick = () => goDay(+1, totalDays);
     }
 
     function exportDayPDF(label, exercises){
@@ -362,20 +422,38 @@
         const title = ex.name || `Exercise ${i+1}`;
         const sets  = ex.sets || 3;
         const reps  = fmtReps(ex.reps || '');
-        const note  = ex.note || '';
-        const userNote = card.querySelector('[data-notes]')?.value || '';
+        const time  = asStr(ex.time || '');
+        const tempo = asStr(ex.tempo || '');
+        const planWeight = asStr(ex.expectedWeight || ex.weight || ex.targetWeight || '');
+
+        const planBits = []
+        if (reps)  planBits.push(`Reps: ${reps}`);
+        if (time)  planBits.push(`Time: ${time}`);
+        if (tempo) planBits.push(`Tempo: ${tempo}`);
+        if (planWeight) planBits.push(`Weight: ${planWeight}kg`);
+
+        const planNote  = (ex.note || ex.notes || '');
+        const userNote  = card.querySelector('[data-notes]')?.value || '';
         const setDetails = [];
         card.querySelectorAll('.set-container').forEach((setEl, sIdx) => {
           const w = setEl.querySelector('[data-weight]').value || '-';
-          const r = setEl.querySelector('[data-reps]').value || '-';
-          setDetails.push(`S${sIdx+1}: ${w}kg x ${r}`);
+          const r = setEl.querySelector('[data-reps]').value || (time ? time : '-');
+          setDetails.push(`S${sIdx+1}: ${w === '-' ? '-' : w+'kg'} x ${r}`);
         });
-        rows.push([`${i+1}. ${title}`, `${sets}`, reps || '—', note, userNote, setDetails.join(' | ') || '—']);
+
+        rows.push([
+          `${i+1}. ${title}`,
+          `${sets}`,
+          planBits.join(' · ') || '—',
+          planNote || '—',
+          userNote || '—',
+          setDetails.join(' | ') || '—'
+        ]);
       });
 
       doc.autoTable({
         startY: 30,
-        head: [['Exercise','Sets','Reps','Plan Notes','Your Notes','Logged Sets']],
+        head: [['Exercise','Sets','Plan (R/T/T/W)','Plan Notes','Your Notes','Logged Sets']],
         body: rows,
         theme: 'grid',
         headStyles: { fillColor:[151,251,87], textColor:18 }
@@ -386,14 +464,21 @@
     }
 
     // --- Timer ---
-    let timerInterval, secondsLeft = 90;
+    let timerInterval, secondsLeft = 90, lastSetDuration = 90;
     const modal = document.getElementById('timerModal');
     const timerFace = document.getElementById('timerFace');
 
-    function openTimer(sec=90){ secondsLeft = Number(sec)||90; modal.classList.remove('hidden'); startTimer(); }
+    function openTimer(sec=90){
+      lastSetDuration = Number(sec) || 90;
+      secondsLeft = lastSetDuration;
+      modal.classList.remove('hidden');
+      timerFace.classList.remove('animate-pulse');
+      startTimer();
+    }
     function closeTimer(){ modal.classList.add('hidden'); timerFace.classList.remove('animate-pulse'); }
     function startTimer(){
-      clearInterval(timerInterval); updateTimerDisplay();
+      clearInterval(timerInterval);
+      updateTimerDisplay();
       timerInterval = setInterval(() => {
         secondsLeft--; updateTimerDisplay();
         if (secondsLeft <= 0){
@@ -404,12 +489,17 @@
       }, 1000);
     }
     function updateTimerDisplay(){
-      const m = String(Math.floor(secondsLeft/60)).padStart(2,'0');
-      const s = String(secondsLeft%60).padStart(2,'0');
+      const m = String(Math.floor(Math.max(0, secondsLeft)/60)).padStart(2,'0');
+      const s = String(Math.max(0, secondsLeft)%60).padStart(2,'0');
       timerFace.textContent = `${m}:${s}`;
     }
     document.getElementById('pauseTimer').addEventListener('click', ()=> clearInterval(timerInterval));
-    document.getElementById('resetTimer').addEventListener('click', ()=>{ secondsLeft = Math.max(0, secondsLeft); timerFace.classList.remove('animate-pulse'); });
+    document.getElementById('resetTimer').addEventListener('click', ()=>{
+      clearInterval(timerInterval);
+      secondsLeft = lastSetDuration;
+      timerFace.classList.remove('animate-pulse');
+      startTimer();
+    });
     modal.addEventListener('click', e => { if(e.target===modal) closeTimer(); });
 
     // --- Navigation buttons ---
@@ -420,8 +510,6 @@
       url.searchParams.set('d', next);
       location.href = url.toString();
     }
-    document.getElementById('prevBtn').addEventListener('click', ()=> goDay(-1, 999));
-    document.getElementById('nextBtn').addEventListener('click', ()=> goDay(+1, 999));
 
     // --- Boot ---
     onAuthStateChanged(auth, async (user) => {
@@ -445,10 +533,6 @@
           renderOutOfRange(totalDays);
           return;
         }
-
-        // Wire prev/next with correct bounds
-        document.getElementById('prevBtn').onclick = () => goDay(-1, totalDays);
-        document.getElementById('nextBtn').onclick = () => goDay(+1, totalDays);
 
         renderDay(program.days[DAY_INDEX-1], DAY_INDEX, totalDays);
       }catch(err){

@@ -13,7 +13,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase compat (same versions you’ve been using) -->
+  <!-- Firebase compat (for static hosting) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
@@ -22,10 +22,7 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     :root{
-      --accent:#97FB57;   /* neon green */
-      --bg:#121212;       /* near-black */
-      --muted:#909090;    /* gray */
-      --light:#F6F2F2;    /* off-white */
+      --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2;
     }
     html,body{height:100%}
     body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
@@ -41,9 +38,9 @@
     .text-muted{color:var(--muted)}
     .divider{border-color:rgba(144,144,144,.35)}
     .pill{border-radius:9999px;padding:.25rem .6rem;border:1px solid rgba(151,251,87,.35);background:rgba(151,251,87,.08);font-size:.75rem}
-
-    /* Avatar ring */
     .ring-accent{ box-shadow:0 0 0 2px rgba(151,251,87,.6); }
+    .empty-cta{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+    .link{color:var(--accent);text-decoration:underline}
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -109,7 +106,10 @@
           <h2 class="text-lg font-semibold">Your Clients</h2>
           <div class="flex gap-2">
             <input id="searchInput" class="card px-3 py-2 rounded-lg text-sm" placeholder="Search name or email…">
-            <button id="refreshBtn" class="btn-ghost px-3 rounded-lg"><i data-feather="refresh-cw"></i></button>
+            <button id="refreshBtn" class="btn-ghost px-3 rounded-lg" title="Refresh"><i data-feather="refresh-cw"></i></button>
+            <a href="trainer-program-builder.html" class="btn-accent px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+              <i data-feather="plus-square"></i><span>Create Program</span>
+            </a>
           </div>
         </div>
         <div id="clientsList" class="divide-y divider">
@@ -136,7 +136,9 @@
         <section class="panel rounded-xl p-4">
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-semibold">Pending Join Requests</h3>
-            <button id="refreshPendingBtn" class="btn-ghost p-2 rounded-lg"><i data-feather="refresh-cw"></i></button>
+            <button id="refreshPendingBtn" class="btn-ghost p-2 rounded-lg" title="Refresh pending">
+              <i data-feather="refresh-cw"></i>
+            </button>
           </div>
           <div id="pendingList" class="divide-y divider">
             <div class="text-muted text-sm p-3">No pending requests.</div>
@@ -144,6 +146,17 @@
         </section>
       </aside>
     </div>
+
+    <!-- Empty state CTA when no clients -->
+    <section id="emptyCta" class="panel rounded-xl p-4 mt-4 hidden">
+      <div class="empty-cta">
+        <p class="text-muted">No clients yet. You can still build programs now and assign them later.</p>
+        <a class="btn-accent px-3 py-2 rounded-lg text-sm" href="trainer-program-builder.html">
+          <i data-feather="layout" class="inline mr-1"></i>Create Program
+        </a>
+        <a class="link text-sm" href="signup.html">Ask a client to sign up</a>
+      </div>
+    </section>
   </main>
 
   <!-- Client detail modal -->
@@ -156,22 +169,16 @@
         </button>
       </div>
 
-      <div id="clientHeader" class="flex items-center gap-3 mb-3">
-        <!-- avatar -->
-      </div>
+      <div id="clientHeader" class="flex items-center gap-3 mb-3"></div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="panel rounded-lg p-3">
           <h4 class="font-semibold mb-2">Profile</h4>
-          <dl class="text-sm space-y-1" id="clientProfile">
-            <!-- entries -->
-          </dl>
+          <dl class="text-sm space-y-1" id="clientProfile"></dl>
         </div>
         <div class="panel rounded-lg p-3">
           <h4 class="font-semibold mb-2">Recent Logs</h4>
-          <div id="clientLogs" class="space-y-2">
-            <!-- logs -->
-          </div>
+          <div id="clientLogs" class="space-y-2"></div>
         </div>
       </div>
 
@@ -184,9 +191,9 @@
   </div>
 
   <script>
-    // Init + guard
+    // ===== Guard: trainer only =====
     AuthGuard.init();
-    AuthGuard.requireRole('trainer');
+    AuthGuard.requireRole('trainer'); // will redirect non-trainers to login with ?next=trainer-dashboard.html
 
     const db = firebase.firestore();
     let currentUser = null;
@@ -194,7 +201,6 @@
     let clientsCache = [];
 
     const el = (id)=>document.getElementById(id);
-
     const trainerNameEl = el('trainerName');
     const kpiClientsEl  = el('kpiClients');
     const kpiActiveEl   = el('kpiActive');
@@ -205,6 +211,7 @@
     const addClientForm = el('addClientForm');
     const addClientMsg  = el('addClientMsg');
     const searchInput   = el('searchInput');
+    const emptyCta      = el('emptyCta');
 
     const clientModal   = el('clientModal');
     const closeClientModal = el('closeClientModal');
@@ -215,7 +222,6 @@
     const openEmailLink = el('openEmail');
     const unlinkClientBtn = el('unlinkClientBtn');
 
-    // New: user chip elements
     const userChip   = el('userChip');
     const userAvatar = el('userAvatar');
     const welcomeName= el('welcomeName');
@@ -224,15 +230,13 @@
 
     feather.replace();
 
-    // helpers for avatar initials
     function svgInitials(nameOrEmail){
       const txt = (String(nameOrEmail||'User').match(/\b\w/g)||['U','S']).slice(0,2).join('').toUpperCase();
-      const svg = `
-        <svg xmlns='http://www.w3.org/2000/svg' width='128' height='128'>
-          <rect width='100%' height='100%' rx='64' ry='64' fill='rgba(151,251,87,0.15)'/>
-          <text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle'
-                font-family='Inter, Arial' font-size='54' fill='#97FB57'>${txt}</text>
-        </svg>`;
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128'>
+        <rect width='100%' height='100%' rx='64' ry='64' fill='rgba(151,251,87,0.15)'/>
+        <text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle'
+              font-family='Inter, Arial' font-size='54' fill='#97FB57'>${txt}</text>
+      </svg>`;
       return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
     }
 
@@ -241,70 +245,66 @@
       currentUser = user;
       if(!user) return;
 
-      // Profile preference: Firestore profile (your app) -> Auth
-      trainerProfile = await AuthGuard.getProfile(); // expects { fullName, photoURL, email, ... }
+      trainerProfile = await AuthGuard.getProfile();
       const displayName = trainerProfile?.fullName || user.displayName || '';
       const email = trainerProfile?.email || user.email || '';
       const photoURL = trainerProfile?.photoURL || user.photoURL || '';
 
-      // Header greeting on left (kept)
       trainerNameEl.textContent = displayName ? `Hi, ${displayName}` : '';
+      if(!trainerProfile?.fullName) el('completeProfileBtn').classList.remove('hidden');
 
-      // Show Complete Profile if no fullName saved
-      if(!trainerProfile?.fullName) {
-        el('completeProfileBtn').classList.remove('hidden');
-      }
-
-      // Render user chip (right)
       welcomeName.textContent = displayName ? `Welcome ${displayName}` : 'Welcome';
       welcomeEmail.textContent = email || '';
       userAvatar.src = photoURL || svgInitials(displayName || email);
       userChip.classList.remove('hidden');
 
-      // Sign out
       signOutBtn.addEventListener('click', async ()=>{
         try { await AuthGuard.signOut(); }
         finally { window.location.replace('login.html'); }
       });
 
-      await loadKPIs();
       await loadClients();
+      await loadKPIs();
       await loadPending();
-
       feather.replace();
     });
 
-    // ------- KPIs -------
+    // ------- KPIs (use workout_logs/{clientId}/days like client app) -------
     async function loadKPIs(){
       if(!currentUser) return;
+
       // Total clients
-      const q1 = await db.collection('users')
+      const clientsSnap = await db.collection('users')
         .where('role','==','client')
         .where('trainerId','==', currentUser.uid)
         .get();
-      kpiClientsEl.textContent = q1.size;
+      kpiClientsEl.textContent = clientsSnap.size;
 
-      // Sessions 30d (sum of logs for these clients)
-      const since = new Date(); since.setDate(since.getDate()-30);
-      const sinceISO = since.toISOString().slice(0,10);
+      // Sessions 30d + active this week
+      const since30 = new Date(); since30.setDate(since30.getDate()-30);
+      const since7  = new Date(); since7.setDate(since7.getDate()-7);
+      const iso30 = since30.toISOString().slice(0,10);
+      const iso7  = since7.toISOString().slice(0,10);
 
-      let totalSessions = 0, activeThisWeek = 0;
-      const sinceWeek = new Date(); sinceWeek.setDate(sinceWeek.getDate()-7);
-      const sinceWeekISO = sinceWeek.toISOString().slice(0,10);
+      let totalSessions = 0;
+      let activeThisWeek = 0;
 
-      // naive approach: fetch each client’s recent logs (ensure security rules permit trainer read)
-      const clientIds = q1.docs.map(d=>d.id);
+      const clientIds = clientsSnap.docs.map(d=>d.id);
       for (const cid of clientIds) {
-        const logsSnap = await db.collection('workouts').doc(cid).collection('logs')
-          .where('date','>=', sinceISO)
-          .orderBy('date','desc')
-          .get();
-        totalSessions += logsSnap.size;
-        const weekSnap = logsSnap.docs.filter(x => (x.data().date || '') >= sinceWeekISO);
-        if (weekSnap.length > 0) activeThisWeek++;
+        // logs path mirrors index.html: workout_logs/{uid}/days
+        const logsRef = db.collection('workout_logs').doc(cid).collection('days');
+        const recentSnap = await logsRef.where('date','>=', iso30).orderBy('date','desc').get();
+        totalSessions += recentSnap.size;
+
+        const hadWeek = recentSnap.docs.some(doc => (doc.data().date || '') >= iso7);
+        if (hadWeek) activeThisWeek++;
       }
       kpiSessionsEl.textContent = totalSessions;
       kpiActiveEl.textContent = activeThisWeek;
+
+      // Show empty CTA if no clients
+      if (clientsSnap.size === 0) emptyCta.classList.remove('hidden');
+      else emptyCta.classList.add('hidden');
     }
 
     // ------- Clients -------
@@ -319,11 +319,16 @@
 
       clientsCache = qs.docs.map(d=>({ id:d.id, ...d.data() }));
       renderClients(clientsCache);
+      if (qs.empty) emptyCta.classList.remove('hidden');
     }
 
     function renderClients(list){
       if(!list.length){
-        clientsListEl.innerHTML = `<div class="text-muted text-sm p-4">No clients yet. Link a client using the form on the right.</div>`;
+        clientsListEl.innerHTML = `
+          <div class="p-4 text-sm text-muted">
+            No clients yet. Link a client using the form on the right,
+            or <a class="link" href="trainer-program-builder.html">create a program</a> now.
+          </div>`;
         return;
       }
       clientsListEl.innerHTML = list.map(c=>{
@@ -348,7 +353,6 @@
       feather.replace();
     }
 
-    // search
     searchInput.addEventListener('input', ()=>{
       const q = searchInput.value.trim().toLowerCase();
       const filtered = clientsCache.filter(c =>
@@ -366,7 +370,6 @@
       if(!email) return;
 
       try{
-        // find user with that email (requires an index on users.email)
         const snap = await db.collection('users').where('email','==',email).limit(1).get();
         if(snap.empty){
           addClientMsg.className = 'text-sm text-red-400';
@@ -374,9 +377,7 @@
           return;
         }
         const userDoc = snap.docs[0];
-        await db.collection('users').doc(userDoc.id).set({
-          trainerId: currentUser.uid
-        }, { merge:true });
+        await db.collection('users').doc(userDoc.id).set({ trainerId: currentUser.uid }, { merge:true });
 
         addClientMsg.className = 'text-sm text-green-400';
         addClientMsg.textContent = 'Client linked!';
@@ -443,12 +444,18 @@
 
     // ------- Client modal -------
     window.openClient = async function(uid){
-      // fetch profile
-      const doc = await db.collection('users').doc(uid).get();
-      if(!doc.exists){ alert('Client not found'); return; }
-      const c = { id: uid, ...doc.data() };
+      const docSnap = await db.collection('users').doc(uid).get();
+      if(!docSnap.exists){ alert('Client not found'); return; }
+      const c = { id: uid, ...docSnap.data() };
 
       const avatar = c.photoURL || ('https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57');
+
+      // Support both old and new field names (your signup uses heightCm/weightKg/trainingLocation/extra)
+      const age = c.age ?? '—';
+      const weight = c.weightKg ?? c.weight ?? '—';
+      const height = c.heightCm ?? c.height ?? '—';
+      const training = c.trainingLocation ?? c.trainingPlace ?? '—';
+      const notes = c.extra ?? c.additionalInfo ?? '—';
 
       clientHeader.innerHTML = `
         <img src="${avatar}" class="w-12 h-12 rounded-full object-cover border border-[rgba(151,251,87,.35)]" alt="">
@@ -460,32 +467,34 @@
       `;
 
       clientProfile.innerHTML = `
-        <div><span class="text-muted">Age:</span> ${c.age ?? '—'}</div>
-        <div><span class="text-muted">Weight:</span> ${c.weight ?? '—'} kg</div>
-        <div><span class="text-muted">Height:</span> ${c.height ?? '—'} cm</div>
+        <div><span class="text-muted">Age:</span> ${age}</div>
+        <div><span class="text-muted">Weight:</span> ${weight} ${weight==='—'?'':'kg'}</div>
+        <div><span class="text-muted">Height:</span> ${height} ${height==='—'?'':'cm'}</div>
         <div><span class="text-muted">Country:</span> ${c.country ?? '—'}</div>
         <div><span class="text-muted">Languages:</span> ${(c.languages||[]).join(', ') || '—'}</div>
-        <div><span class="text-muted">Training:</span> ${c.trainingPlace || '—'}</div>
-        <div><span class="text-muted">Notes:</span> ${c.additionalInfo || '—'}</div>
+        <div><span class="text-muted">Training:</span> ${training}</div>
+        <div><span class="text-muted">Notes:</span> ${notes}</div>
       `;
 
-      // logs
-      const logsSnap = await db.collection('workouts').doc(uid).collection('logs')
+      // logs: workout_logs/{uid}/days ordered by date desc
+      const logsSnap = await db.collection('workout_logs').doc(uid).collection('days')
         .orderBy('date','desc').limit(10).get();
+
       if (logsSnap.empty){
         clientLogs.innerHTML = `<div class="text-muted text-sm">No logs yet.</div>`;
       } else {
         clientLogs.innerHTML = logsSnap.docs.map(d=>{
           const x = d.data();
           const dateDisp = x.date || d.id;
-          const day = x.day || '';
+          const day = x.dayLabel || x.day || '';
+          const exercises = x.exercisesCompleted ?? (Array.isArray(x.exercises) ? x.exercises.length : 0);
           return `
             <div class="card rounded-lg p-2 flex items-center justify-between">
               <div>
                 <div class="font-medium">${dateDisp}</div>
                 <div class="text-xs text-muted">${day}</div>
               </div>
-              <span class="pill">${(x.exercisesCompleted ?? 0)} exercises</span>
+              <span class="pill">${exercises} exercises</span>
             </div>`;
         }).join('');
       }

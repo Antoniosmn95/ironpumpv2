@@ -8,21 +8,15 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-   <!-- Firebase + Auth Guard -->
-   <script type="module" src="firebase-init.js"></script>
-   <script type="module" src="auth-guard.js"></script>
-   
   <!-- PDF libs for month export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
     :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
     html,body{ height:100%; }
     body{ font-family:'Inter',sans-serif; background:var(--bg); color:var(--light); }
-
     .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
     .card { background:#171717; border:1px solid rgba(144,144,144,0.35); }
     .card:hover{ background:#1d1d1d; }
@@ -33,17 +27,14 @@
     .btn-accent:active{ transform:translateY(1px); }
     .btn-ghost{ background:#232323; color:var(--light); border:1px solid rgba(144,144,144,0.35); }
     .btn-ghost:hover{ background:#2a2a2a; }
-
     .text-muted{ color:var(--muted); }
     .divider{ border-color:rgba(144,144,144,0.35); }
-
     .cal-day{ border-radius:.5rem; cursor:default; }
     .cal-day--muted{ color:#666; }
     .cal-day--marked{ background: var(--accent); color: var(--bg); box-shadow: 0 0 10px rgba(151,251,87,.35); font-weight: 600; }
     .cal-day--today{ outline:2px solid rgba(151,251,87,.6); outline-offset:2px; }
     .cal-select{ background:#1e1e1e; border:1px solid rgba(144,144,144,.35); border-radius:.5rem; padding:.35rem .6rem; }
     .cal-select:focus{ outline:2px solid var(--accent); }
-
     .link-card{ display:block; text-decoration:none; color:inherit; }
   </style>
 </head>
@@ -54,7 +45,6 @@
       <h1 class="text-2xl font-bold tracking-tight">
         <span class="accent-text">Iron</span>Pump
       </h1>
-
       <div class="flex items-center gap-2">
         <span id="programName" class="hidden text-sm text-muted"></span>
         <button id="calendarBtn" class="p-2 rounded-full hover:bg-[#1f1f1f] transition" aria-label="Open Calendar">
@@ -73,9 +63,7 @@
           <h2 class="text-xl font-semibold">Select Your Workout Day</h2>
           <span id="authHint" class="text-sm text-muted"></span>
         </div>
-
         <div id="dayGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <!-- Filled dynamically -->
           <div id="loadingDays" class="col-span-full text-sm text-muted">Loading your plan…</div>
         </div>
       </div>
@@ -109,67 +97,61 @@
         </button>
       </div>
 
-      <!-- Controls -->
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <button id="prevMonth" class="p-2 rounded-full btn-ghost" aria-label="Prev">
           <i data-feather="chevron-left"></i>
         </button>
-
         <select id="monthSelect" class="cal-select" aria-label="Select month"></select>
         <select id="yearSelect" class="cal-select" aria-label="Select year"></select>
-
         <button id="nextMonth" class="p-2 rounded-full btn-ghost" aria-label="Next">
           <i data-feather="chevron-right"></i>
         </button>
-
         <button id="todayBtn" class="ml-auto px-3 py-2 rounded-lg btn-ghost">Today</button>
-        <!-- Export month -->
         <button id="exportMonthPDF" class="px-3 py-2 rounded-lg btn-accent">Export Month PDF</button>
       </div>
 
-      <!-- Week Header -->
       <div class="grid grid-cols-7 gap-1 mb-2 text-muted text-xs font-medium">
-        <div class="text-center py-1">Sun</div>
-        <div class="text-center py-1">Mon</div>
-        <div class="text-center py-1">Tue</div>
-        <div class="text-center py-1">Wed</div>
-        <div class="text-center py-1">Thu</div>
-        <div class="text-center py-1">Fri</div>
-        <div class="text-center py-1">Sat</div>
+        <div class="text-center py-1">Sun</div><div class="text-center py-1">Mon</div><div class="text-center py-1">Tue</div>
+        <div class="text-center py-1">Wed</div><div class="text-center py-1">Thu</div><div class="text-center py-1">Fri</div><div class="text-center py-1">Sat</div>
       </div>
-
-      <!-- Days Grid -->
       <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
     </div>
   </div>
 
-  <!-- Firebase init (your config + initializeApp) -->
-  <script type="module" src="firebase-init.js"></script>
-
   <!-- ===== Auth Gate + App Code ===== -->
   <script type="module">
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
-    import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+    import { auth, db } from './firebase-init.js';
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+    import { doc, getDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
     feather.replace();
 
-    const auth = getAuth();
-    const db   = getFirestore();
-
-    // ---------- HARD REDIRECT if not signed in ----------
+    // ---------- AUTH GATE ----------
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        // Use replace() to prevent going "Back" into a protected page
         window.location.replace("login.html");
         return;
       }
-      // If we're here, the user is authenticated — continue loading the dashboard:
-      bootDashboard(user);
+
+      // 🚦 Role check: if trainer -> send to trainer dashboard
+      try {
+        const userRef  = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        const role = userSnap.exists() ? (userSnap.data().role || "client") : "client";
+        if (role === "trainer") {
+          window.location.replace("trainer-dashboard.html");
+          return;
+        }
+      } catch (e) {
+        console.warn("Role check failed, loading client UI anyway:", e);
+      }
+
+      // Otherwise, continue as client UI
+      bootClientUI(user);
     });
 
-    // Everything from here down runs ONLY for authenticated users
-    async function bootDashboard(user){
-      // ---------- Helpers ----------
+    // ========= Client UI =========
+    async function bootClientUI(user){
       function deriveChip(label=''){
         if(!label) return '';
         const parts = label.split('—').map(s=>s.trim());
@@ -207,12 +189,12 @@
           </a>`;
       }
 
-      // ---------- Program loader ----------
       async function loadProgram(uid){
-        const ref = doc(collection(doc(collection(db,'programs'), uid), 'assigned'), 'active');
+        const ref  = doc(collection(doc(collection(db,'programs'), uid), 'assigned'), 'active');
         const snap = await getDoc(ref);
-        return snap.exists() ? snap.data() : null; // {name, days:[...]}
+        return snap.exists() ? snap.data() : null;
       }
+
       function renderProgram(program){
         const grid = document.getElementById('dayGrid');
         const loading = document.getElementById('loadingDays');
@@ -231,15 +213,9 @@
         feather.replace();
       }
 
-      // ---------- Recent activity ----------
-      function getLogsLS(){
-        try { return JSON.parse(localStorage.getItem('ironpump_logs') || '[]'); }
-        catch { return []; }
-      }
-      function getDayMapLS(){
-        try { return JSON.parse(localStorage.getItem('ironpump_daymap') || '{}'); }
-        catch { return {}; }
-      }
+      function getLogsLS(){ try { return JSON.parse(localStorage.getItem('ironpump_logs') || '[]'); } catch { return []; } }
+      function getDayMapLS(){ try { return JSON.parse(localStorage.getItem('ironpump_daymap') || '{}'); } catch { return {}; } }
+
       async function renderRecent(user){
         const box = document.getElementById('recentActivity');
         const empty = document.getElementById('recentEmpty');
@@ -280,12 +256,11 @@
         }
       }
 
-      // Load data now that we're authenticated
       const program = await loadProgram(user.uid);
       renderProgram(program);
       renderRecent(user);
 
-      // ================== Calendar (localStorage marks) ==================
+      // ---- Calendar (localStorage marks) ----
       const calendarBtn = document.getElementById('calendarBtn');
       const calendarModal = document.getElementById('calendarModal');
       const closeCalendar = document.getElementById('closeCalendar');
@@ -314,23 +289,18 @@
       const today = new Date();
       let viewYear  = today.getFullYear();
       let viewMonth = today.getMonth();
-
       function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
       function startWeekday(y,m){ return new Date(y, m, 1).getDay(); }
       function getLogs(){ return new Set(getLogsLS()); }
       function getDayMap(){ return getDayMapLS(); }
 
       function renderCalendar(){
-        monthSelect.value = viewMonth;
-        yearSelect.value = viewYear;
-
+        monthSelect.value = viewMonth; yearSelect.value = viewYear;
         const logs = getLogs();
         const totalDays = daysInMonth(viewYear, viewMonth);
         const startPad  = startWeekday(viewYear, viewMonth);
-
         calGrid.innerHTML = '';
 
-        // Leading muted (prev month)
         const prevMonth = (viewMonth - 1 + 12) % 12;
         const prevYear  = viewMonth === 0 ? viewYear - 1 : viewYear;
         const prevTotal = daysInMonth(prevYear, prevMonth);
@@ -341,22 +311,17 @@
           calGrid.appendChild(d);
         }
 
-        // Current month
         for(let day=1; day<=totalDays; day++){
           const cell = document.createElement('div');
           cell.className = 'cal-day text-center py-2 hover:bg-[#1f1f1f]';
           cell.textContent = day;
-
           const iso = new Date(viewYear, viewMonth, day).toISOString().slice(0,10);
           if(logs.has(iso)) cell.classList.add('cal-day--marked');
-
           const isToday = (viewYear===today.getFullYear() && viewMonth===today.getMonth() && day===today.getDate());
           if(isToday) cell.classList.add('cal-day--today');
-
           calGrid.appendChild(cell);
         }
 
-        // Trailing
         const filled = startPad + totalDays;
         const trailing = (7 - (filled % 7)) % 7;
         for(let i=0; i<trailing; i++){
@@ -370,7 +335,6 @@
       calendarBtn.addEventListener('click', () => { calendarModal.classList.remove('hidden'); renderCalendar(); });
       closeCalendar.addEventListener('click', () => calendarModal.classList.add('hidden'));
       calendarModal.addEventListener('click', (e) => { if(e.target === calendarModal) calendarModal.classList.add('hidden'); });
-
       prevMonthBtn.addEventListener('click', () => { viewMonth--; if(viewMonth < 0){ viewMonth = 11; viewYear--; } renderCalendar(); });
       nextMonthBtn.addEventListener('click', () => { viewMonth++; if(viewMonth > 11){ viewMonth = 0; viewYear++; } renderCalendar(); });
       todayBtn.addEventListener('click', () => { viewYear = new Date().getFullYear(); viewMonth = new Date().getMonth(); renderCalendar(); });
@@ -390,7 +354,6 @@
             const dayLabel = dayMap[iso] || 'Workout recorded';
             return [disp, dayLabel];
           });
-
         const total = rows.length;
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();

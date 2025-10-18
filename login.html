@@ -5,65 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login — IronPump</title>
 
+  <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-   <!-- Firebase + Auth Guard -->
-   <script type="module" src="firebase-init.js"></script>
+  <!-- (Optional) If you already use this elsewhere, keep it; it's guarded below to avoid double init -->
+  <script type="module" src="firebase-init.js"></script>
 
-  <!-- Firebase compat SDKs (best for plain HTML on GitHub Pages) -->
+  <!-- Firebase compat SDKs (good for static hosting like GitHub Pages) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-storage-compat.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    :root{
-      --accent:#97FB57;   /* neon green */
-      --bg:#121212;       /* near-black */
-      --muted:#909090;    /* gray */
-      --light:#F6F2F2;    /* off-white */
-    }
-    html,body{ height:100%; }
-    body{
-      font-family:'Inter',sans-serif;
-      background:var(--bg);
-      color:var(--light);
-    }
-    .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
-    .card { background:#171717; border:1px solid rgba(144,144,144,0.35); }
-    .accent-text{ color:var(--accent); }
-    .btn-accent{
-      background:var(--accent);
-      color:var(--bg);
-      box-shadow:0 0 12px rgba(151,251,87,0.45), inset 0 0 0 1px rgba(18,18,18,0.4);
-      transition:filter .15s ease, transform .05s ease;
-    }
-    .btn-accent:hover{ filter:brightness(.95); }
-    .btn-accent:active{ transform:translateY(1px); }
-    .btn-ghost{
-      background:#232323;
-      color:var(--light);
-      border:1px solid rgba(144,144,144,0.35);
-      transition:background .15s ease, transform .05s ease;
-    }
-    .btn-ghost:hover{ background:#2a2a2a; }
-    .text-muted{ color:var(--muted); }
-    .input{
-      width:100%; padding:.6rem .75rem; border-radius:.75rem;
-      background:#1e1e1e; border:1px solid rgba(144,144,144,.35); outline:none;
-    }
-    .input:focus{ outline:2px solid var(--accent); }
+    :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
+    html,body{height:100%}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
+    .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
+    .card{background:#171717;border:1px solid rgba(144,144,144,.35)}
+    .accent-text{color:var(--accent)}
+    .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 0 12px rgba(151,251,87,.45), inset 0 0 0 1px rgba(18,18,18,.4);transition:filter .15s ease, transform .05s ease}
+    .btn-accent:hover{filter:brightness(.95)}
+    .btn-accent:active{transform:translateY(1px)}
+    .btn-ghost{background:#232323;color:var(--light);border:1px solid rgba(144,144,144,.35);transition:background .15s ease, transform .05s ease}
+    .btn-ghost:hover{background:#2a2a2a}
+    .text-muted{color:var(--muted)}
+    .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
+    .input:focus{outline:2px solid var(--accent)}
   </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
   <main class="w-full max-w-md">
     <!-- Header / Logo -->
     <div class="text-center mb-6">
-      <h1 class="text-3xl font-bold tracking-tight">
-        <span class="accent-text">Iron</span>Pump
-      </h1>
+      <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
       <p class="text-sm text-muted mt-1">Welcome back! Log in to your account.</p>
     </div>
 
@@ -118,7 +94,7 @@
   <script>
     feather.replace();
 
-    // ---- Firebase Init (using your config) ----
+    // ---- Firebase Init (guard against double init if firebase-init.js already ran) ----
     const firebaseConfig = {
       apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
       authDomain: "ironpump-gym-tracker.firebaseapp.com",
@@ -128,17 +104,49 @@
       appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
       measurementId: "G-BG3TDDWXZH"
     };
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
     const auth = firebase.auth();
+    const db   = firebase.firestore();
 
-    // If already logged in, go to index (or ?next=...)
-    auth.onAuthStateChanged((u) => {
-      if (u) {
-        const urlParams = new URLSearchParams(location.search);
-        const next = urlParams.get('next') || 'index.html';
-        location.href = next;
+    // ---------- Role-based routing ----------
+    async function getUserRole(uid) {
+      try {
+        const snap = await db.collection('users').doc(uid).get();
+        if (!snap.exists) {
+          console.warn('[login] users doc missing for', uid);
+          return null;
+        }
+        const role = (snap.data().role || 'client').toString().toLowerCase();
+        return role;
+      } catch (e) {
+        console.error('[login] getUserRole error:', e);
+        return null;
       }
+    }
+
+    async function routeAfterLogin(uid) {
+      // optional ?next=... will override
+      const urlParams = new URLSearchParams(location.search);
+      const next = urlParams.get('next');
+
+      // try a few times in case the profile is written async on signup
+      let role = null;
+      for (let i = 0; i < 3 && !role; i++) {
+        role = await getUserRole(uid);
+        if (!role) await new Promise(r => setTimeout(r, 300));
+      }
+
+      if (role === 'trainer') {
+        location.replace(next || 'trainer-dashboard.html');
+      } else {
+        location.replace(next || 'index.html');
+      }
+    }
+
+    // If already signed in, route by role
+    auth.onAuthStateChanged((u) => {
+      if (u) routeAfterLogin(u.uid);
     });
 
     // ---- UI helpers ----
@@ -194,16 +202,16 @@
 
       try{
         setLoading(true);
-        // Persistence based on "Remember me"
         await auth.setPersistence(rememberEl.checked
           ? firebase.auth.Auth.Persistence.LOCAL
           : firebase.auth.Auth.Persistence.SESSION
         );
-        await auth.signInWithEmailAndPassword(email, pass);
-        // Redirect happens via onAuthStateChanged
+        const { user } = await auth.signInWithEmailAndPassword(email, pass);
+        await routeAfterLogin(user.uid);
       }catch(err){
-        setLoading(false);
         showError(prettyAuthError(err));
+      } finally {
+        setLoading(false);
       }
     });
 
