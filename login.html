@@ -33,6 +33,11 @@
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
+
+    /* Segmented role switch */
+    .seg { display:flex; background:#1b1b1b; border:1px solid rgba(144,144,144,.35); border-radius:9999px; padding:4px; gap:4px; }
+    .seg button { flex:1; padding:.5rem .75rem; border-radius:9999px; font-weight:600; color:var(--light); background:transparent; border:none; cursor:pointer; }
+    .seg button.active { background:var(--accent); color:var(--bg); box-shadow:0 0 10px rgba(151,251,87,.35) inset; }
   </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -40,11 +45,21 @@
     <!-- Header / Logo -->
     <div class="text-center mb-6">
       <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
-      <p class="text-sm text-muted mt-1">Welcome back! Log in to your account.</p>
+      <p class="text-sm text-muted mt-1">Choose your role and log in to your account.</p>
     </div>
 
     <!-- Card -->
     <section class="panel rounded-2xl p-6">
+      <!-- Role choice -->
+      <div class="mb-4">
+        <label class="block text-sm mb-2">Log in as</label>
+        <div class="seg" role="tablist" aria-label="Login role">
+          <button type="button" id="roleClient" class="active" aria-selected="true" role="tab">Client</button>
+          <button type="button" id="roleTrainer" aria-selected="false" role="tab">Trainer</button>
+        </div>
+        <p class="text-xs text-muted mt-2" id="roleHint">You’re logging in as <span class="accent-text font-semibold">Client</span>.</p>
+      </div>
+
       <form id="loginForm" class="space-y-4" novalidate>
         <div>
           <label for="email" class="block text-sm mb-1">Email</label>
@@ -109,46 +124,84 @@
     const auth = firebase.auth();
     const db   = firebase.firestore();
 
-    // ---------- Role-based routing ----------
-    const DEBUG = true; // Set to false to disable extra logs
+    // ---------- Role UI state ----------
+    let chosenRole = (sessionStorage.getItem('ironpump_chosenRole') || 'client'); // 'client' | 'trainer'
+    const roleClientBtn  = document.getElementById('roleClient');
+    const roleTrainerBtn = document.getElementById('roleTrainer');
+    const roleHint       = document.getElementById('roleHint');
 
-    async function getUserRole(uid) {
+    function renderRoleUI() {
+      const isClient = chosenRole === 'client';
+      roleClientBtn.classList.toggle('active', isClient);
+      roleTrainerBtn.classList.toggle('active', !isClient);
+      roleClientBtn.setAttribute('aria-selected', String(isClient));
+      roleTrainerBtn.setAttribute('aria-selected', String(!isClient));
+      roleHint.innerHTML = `You’re logging in as <span class="accent-text font-semibold">${isClient ? 'Client' : 'Trainer'}</span>.`;
+    }
+    roleClientBtn.addEventListener('click', () => { chosenRole = 'client'; sessionStorage.setItem('ironpump_chosenRole', chosenRole); renderRoleUI(); });
+    roleTrainerBtn.addEventListener('click', () => { chosenRole = 'trainer'; sessionStorage.setItem('ironpump_chosenRole', chosenRole); renderRoleUI(); });
+    renderRoleUI();
+
+    // ---------- Role helpers ----------
+    const DEBUG = true;
+
+    async function fetchUserRoles(uid) {
       try {
         const snap = await db.collection('users').doc(uid).get();
-        if (DEBUG) console.log('[login] getUserRole:', { uid, exists: snap.exists, data: snap.data() });
-        if (!snap.exists) return null;
-        return (snap.data().role || 'client').toString().toLowerCase();
+        if (DEBUG) console.log('[login] fetchUserRoles:', { uid, exists: snap.exists, data: snap.data() });
+        if (!snap.exists) return { roles: [], raw: null };
+
+        const data = snap.data() || {};
+        // Accept either `role: "client"` or `roles: ["client","trainer"]`
+        let roles = [];
+        if (Array.isArray(data.roles)) {
+          roles = data.roles.map(r => String(r || '').toLowerCase()).filter(Boolean);
+        } else if (data.role) {
+          roles = [String(data.role).toLowerCase()];
+        }
+        // De-dup + sanity
+        roles = Array.from(new Set(roles.filter(r => r === 'client' || r === 'trainer')));
+        return { roles, raw: data };
       } catch (err) {
-        console.error('[login] getUserRole error:', { uid, code: err.code, message: err.message, stack: err.stack });
-        return null;
+        console.error('[login] fetchUserRoles error:', err);
+        return { roles: [], raw: null };
       }
+    }
+
+    function userHasRole(roles, role) {
+      // If no roles stored, default to ['client'] for legacy behavior.
+      if (!roles || roles.length === 0) return role === 'client';
+      return roles.includes(role);
+    }
+
+    function routeFor(role) {
+      const next = new URLSearchParams(location.search).get('next');
+      if (role === 'trainer') return next || 'trainer-dashboard.html';
+      return next || 'index.html';
     }
 
     async function routeAfterLogin(uid) {
-      let role = null;
-      const maxAttempts = 10;
-      let delay = 150;
+      const { roles } = await fetchUserRoles(uid);
 
-      for (let i = 0; i < maxAttempts; i++) {
-        role = await getUserRole(uid);
-        if (DEBUG) console.log('[login] uid:', uid, 'attempt:', i + 1, 'role:', role);
-        if (role) break;
-        await new Promise(r => setTimeout(r, delay));
-        delay = Math.min(delay * 2, 3000); // Exponential backoff
+      // If the picked role is allowed, go there; else error with guidance.
+      if (userHasRole(roles, chosenRole)) {
+        if (DEBUG) console.log('[login] Routing as chosenRole=', chosenRole);
+        location.replace(routeFor(chosenRole));
+        return;
       }
 
-      const next = new URLSearchParams(location.search).get('next');
-      if (role === 'trainer') {
-        if (DEBUG) console.log('[login] Redirecting to trainer-dashboard.html');
-        location.replace(next || 'trainer-dashboard.html');
-      } else if (role === 'client') {
-        if (DEBUG) console.log('[login] Redirecting to index.html');
-        location.replace(next || 'index.html');
-      } else {
-        showError('Your profile is incomplete or missing. Please sign up or contact support.');
+      // If user lacks chosen role but has the other one, suggest switching.
+      if (roles.includes('trainer') || roles.includes('client')) {
+        const available = roles.join(', ');
+        showError(`Your account is not set up as ${chosenRole}. Available role(s): ${available}.`);
+        return;
       }
+
+      // No roles doc at all: legacy users default to client but prompt to complete profile.
+      showError('Your profile role is missing. Please complete your profile or contact support.');
     }
 
+    // ---- Auth state: if already signed in, route using current choice (with validation) ----
     auth.onAuthStateChanged(async (u) => {
       if (u) {
         if (DEBUG) console.log('[login] Auth state changed:', u.uid);
@@ -156,26 +209,12 @@
       }
     });
 
-    // Dev utility: Check My Role button
-    if (DEBUG) {
-      const checkRoleBtn = document.createElement('button');
-      checkRoleBtn.textContent = 'Check My Role';
-      checkRoleBtn.style = 'position:fixed;bottom:10px;right:10px;z-index:1000;padding:10px;background:#97FB57;color:#121212;border:none;border-radius:5px;cursor:pointer;';
-      checkRoleBtn.onclick = async () => {
-        const user = auth.currentUser;
-        if (!user) return alert('Not signed in.');
-        const role = await getUserRole(user.uid);
-        alert(`Role: ${role || 'No role found (missing doc)'}`);
-      };
-      document.body.appendChild(checkRoleBtn);
-    }
-
     // ---- UI helpers ----
-    const emailEl = document.getElementById('email');
-    const pwEl    = document.getElementById('password');
-    const rememberEl = document.getElementById('remember');
-    const statusEl   = document.getElementById('status');
-    const loginBtn   = document.getElementById('loginBtn');
+    const emailEl   = document.getElementById('email');
+    const pwEl      = document.getElementById('password');
+    const rememberEl= document.getElementById('remember');
+    const statusEl  = document.getElementById('status');
+    const loginBtn  = document.getElementById('loginBtn');
 
     function setLoading(isLoading){
       loginBtn.disabled = isLoading;
@@ -228,6 +267,7 @@
           : firebase.auth.Auth.Persistence.SESSION
         );
         const { user } = await auth.signInWithEmailAndPassword(email, pass);
+        // Route based on the role the user PICKED (validated against Firestore).
         await routeAfterLogin(user.uid);
       }catch(err){
         showError(prettyAuthError(err));
@@ -244,7 +284,7 @@
         case 'auth/user-not-found': return 'No account found with this email.';
         case 'auth/wrong-password': return 'Incorrect password.';
         case 'auth/too-many-requests': return 'Too many attempts. Try again later.';
-        default: return err.message || 'Authentication error.';
+        default: return err && err.message ? err.message : 'Authentication error.';
       }
     }
   </script>
