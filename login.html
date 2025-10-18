@@ -5,17 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login — IronPump</title>
 
-  <!-- Favicon (Google Drive converted link) -->
-  <link rel="icon" type="image/png" href="https://drive.google.com/uc?export=view&id=1q5by_sN9-axiBb3XCNZjhd5gy0enrmug" />
-
   <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- (Optional) If you already use this elsewhere, keep it; it's guarded below to avoid double init -->
+  <!-- Firebase -->
   <script type="module" src="firebase-init.js"></script>
-
-  <!-- Firebase compat SDKs (good for static hosting like GitHub Pages) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
@@ -26,13 +21,10 @@
     html,body{height:100%}
     body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
     .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
-    .card{background:#171717;border:1px solid rgba(144,144,144,.35)}
     .accent-text{color:var(--accent)}
     .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 0 12px rgba(151,251,87,.45), inset 0 0 0 1px rgba(18,18,18,.4);transition:filter .15s ease, transform .05s ease}
     .btn-accent:hover{filter:brightness(.95)}
     .btn-accent:active{transform:translateY(1px)}
-    .btn-ghost{background:#232323;color:var(--light);border:1px solid rgba(144,144,144,.35);transition:background .15s ease, transform .05s ease}
-    .btn-ghost:hover{background:#2a2a2a}
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
@@ -45,16 +37,12 @@
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
   <main class="w-full max-w-md">
-    <!-- Header / Logo -->
-    <div class="text-center mb-2 flex items-center justify-center gap-2">
-      <img src="https://drive.google.com/uc?export=view&id=1q5by_sN9-axiBb3XCNZjhd5gy0enrmug"
-           alt="IronPump Logo"
-           class="w-10 h-10 object-contain" />
+    <!-- Header -->
+    <div class="text-center mb-2">
       <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
     </div>
     <p class="text-sm text-muted text-center mb-6">Choose your role and log in to your account.</p>
 
-    <!-- Card -->
     <section class="panel rounded-2xl p-6">
       <!-- Role choice -->
       <div class="mb-4">
@@ -66,6 +54,7 @@
         <p class="text-xs text-muted mt-2" id="roleHint">You’re logging in as <span class="accent-text font-semibold">Client</span>.</p>
       </div>
 
+      <!-- Form -->
       <form id="loginForm" class="space-y-4" novalidate>
         <div>
           <label for="email" class="block text-sm mb-1">Email</label>
@@ -90,19 +79,16 @@
             <input id="remember" type="checkbox" class="accent-[var(--accent)]">
             <span>Remember me</span>
           </label>
-          <a href="signup.html" class="text-sm accent-text hover:underline">Are you a client? Register here</a>
+          <!-- Dynamic register links -->
+          <a href="signup.html" id="registerClient" class="text-sm accent-text hover:underline">Are you a client? Register here</a>
+          <a href="signup-trainer.html" id="registerTrainer" class="text-sm accent-text hover:underline hidden">Are you a trainer? Register here</a>
         </div>
 
         <button id="loginBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
           <i data-feather="log-in" class="w-4 h-4"></i><span>Log In</span>
         </button>
 
-        <div class="text-center text-sm">
-          <span class="text-muted">Are you a trainer?</span>
-          <a href="signup-trainer.html" class="accent-text hover:underline">Register here</a>
-        </div>
-
-        <!-- Status / Errors -->
+        <!-- Status -->
         <p id="status" class="text-sm mt-2 h-5"></p>
       </form>
     </section>
@@ -115,7 +101,6 @@
   <script>
     feather.replace();
 
-    // ---- Firebase Init (guard against double init if firebase-init.js already ran) ----
     const firebaseConfig = {
       apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
       authDomain: "ironpump-gym-tracker.firebaseapp.com",
@@ -130,168 +115,112 @@
     const auth = firebase.auth();
     const db   = firebase.firestore();
 
-    // ---------- Role UI state ----------
-    let chosenRole = (sessionStorage.getItem('ironpump_chosenRole') || 'client'); // 'client' | 'trainer'
-    const roleClientBtn  = document.getElementById('roleClient');
+    // Role UI logic
+    let chosenRole = sessionStorage.getItem('ironpump_chosenRole') || 'client';
+    const roleClientBtn = document.getElementById('roleClient');
     const roleTrainerBtn = document.getElementById('roleTrainer');
-    const roleHint       = document.getElementById('roleHint');
+    const roleHint = document.getElementById('roleHint');
+    const regClient = document.getElementById('registerClient');
+    const regTrainer = document.getElementById('registerTrainer');
 
     function renderRoleUI() {
       const isClient = chosenRole === 'client';
       roleClientBtn.classList.toggle('active', isClient);
       roleTrainerBtn.classList.toggle('active', !isClient);
-      roleClientBtn.setAttribute('aria-selected', String(isClient));
-      roleTrainerBtn.setAttribute('aria-selected', String(!isClient));
       roleHint.innerHTML = `You’re logging in as <span class="accent-text font-semibold">${isClient ? 'Client' : 'Trainer'}</span>.`;
+      regClient.classList.toggle('hidden', !isClient);
+      regTrainer.classList.toggle('hidden', isClient);
     }
-    roleClientBtn.addEventListener('click', () => { chosenRole = 'client'; sessionStorage.setItem('ironpump_chosenRole', chosenRole); renderRoleUI(); });
-    roleTrainerBtn.addEventListener('click', () => { chosenRole = 'trainer'; sessionStorage.setItem('ironpump_chosenRole', chosenRole); renderRoleUI(); });
+    roleClientBtn.addEventListener('click', () => {
+      chosenRole = 'client';
+      sessionStorage.setItem('ironpump_chosenRole', chosenRole);
+      renderRoleUI();
+    });
+    roleTrainerBtn.addEventListener('click', () => {
+      chosenRole = 'trainer';
+      sessionStorage.setItem('ironpump_chosenRole', chosenRole);
+      renderRoleUI();
+    });
     renderRoleUI();
 
-    // ---------- Role helpers ----------
     const DEBUG = true;
 
     async function fetchUserRoles(uid) {
       try {
         const snap = await db.collection('users').doc(uid).get();
-        if (DEBUG) console.log('[login] fetchUserRoles:', { uid, exists: snap.exists, data: snap.data() });
         if (!snap.exists) return { roles: [], raw: null };
-
         const data = snap.data() || {};
-        // Accept either `role: "client"` or `roles: ["client","trainer"]`
         let roles = [];
-        if (Array.isArray(data.roles)) {
-          roles = data.roles.map(r => String(r || '').toLowerCase()).filter(Boolean);
-        } else if (data.role) {
-          roles = [String(data.role).toLowerCase()];
-        }
-        roles = Array.from(new Set(roles.filter(r => r === 'client' || r === 'trainer')));
-        return { roles, raw: data };
-      } catch (err) {
-        console.error('[login] fetchUserRoles error:', err);
-        return { roles: [], raw: null };
-      }
+        if (Array.isArray(data.roles)) roles = data.roles.map(r => r.toLowerCase());
+        else if (data.role) roles = [data.role.toLowerCase()];
+        return { roles };
+      } catch (e) { console.error(e); return { roles: [] }; }
     }
 
     function userHasRole(roles, role) {
-      // If no roles stored, default to ['client'] for legacy behavior.
-      if (!roles || roles.length === 0) return role === 'client';
+      if (!roles || !roles.length) return role === 'client';
       return roles.includes(role);
     }
 
     function routeFor(role) {
       const next = new URLSearchParams(location.search).get('next');
-      if (role === 'trainer') return next || 'trainer-dashboard.html';
-      return next || 'index.html';
+      return role === 'trainer' ? (next || 'trainer-dashboard.html') : (next || 'index.html');
     }
 
     async function routeAfterLogin(uid) {
       const { roles } = await fetchUserRoles(uid);
-
-      // If the picked role is allowed, go there; else error with guidance.
       if (userHasRole(roles, chosenRole)) {
-        if (DEBUG) console.log('[login] Routing as chosenRole=', chosenRole);
         location.replace(routeFor(chosenRole));
-        return;
+      } else {
+        document.getElementById('status').textContent = `You don't have ${chosenRole} access.`;
       }
-
-      // If user lacks chosen role but has the other one, suggest switching.
-      if (roles.includes('trainer') || roles.includes('client')) {
-        const available = roles.join(', ');
-        showError(`Your account is not set up as ${chosenRole}. Available role(s): ${available}.`);
-        return;
-      }
-
-      // No roles doc at all: legacy users default to client but prompt to complete profile.
-      showError('Your profile role is missing. Please complete your profile or contact support.');
     }
 
-    // ---- Auth state: if already signed in, route using current choice (with validation) ----
+    // Auth
     auth.onAuthStateChanged(async (u) => {
-      if (u) {
-        if (DEBUG) console.log('[login] Auth state changed:', u.uid);
-        await routeAfterLogin(u.uid);
-      }
+      if (u) await routeAfterLogin(u.uid);
     });
 
-    // ---- UI helpers ----
-    const emailEl   = document.getElementById('email');
-    const pwEl      = document.getElementById('password');
-    const rememberEl= document.getElementById('remember');
-    const statusEl  = document.getElementById('status');
-    const loginBtn  = document.getElementById('loginBtn');
+    const emailEl = document.getElementById('email');
+    const pwEl = document.getElementById('password');
+    const rememberEl = document.getElementById('remember');
+    const statusEl = document.getElementById('status');
+    const loginBtn = document.getElementById('loginBtn');
 
-    function setLoading(isLoading){
-      loginBtn.disabled = isLoading;
-      loginBtn.style.opacity = isLoading ? 0.7 : 1;
-      statusEl.textContent = isLoading ? 'Signing in…' : '';
-      statusEl.style.color = isLoading ? 'var(--muted)' : '';
-    }
-    function showError(msg){
-      statusEl.textContent = msg;
-      statusEl.style.color = '#ff6b6b';
-    }
-    function showSuccess(msg){
-      statusEl.textContent = msg;
-      statusEl.style.color = 'var(--accent)';
-    }
-
-    // Toggle password visibility
     document.getElementById('togglePw').addEventListener('click', () => {
-      const t = pwEl.getAttribute('type') === 'password' ? 'text' : 'password';
-      pwEl.setAttribute('type', t);
-      const icon = t === 'password' ? 'eye' : 'eye-off';
-      document.querySelector('#togglePw i').setAttribute('data-feather', icon);
+      const t = pwEl.type === 'password' ? 'text' : 'password';
+      pwEl.type = t;
+      document.querySelector('#togglePw i').setAttribute('data-feather', t === 'password' ? 'eye' : 'eye-off');
       feather.replace();
     });
 
-    // Forgot password
     document.getElementById('forgotBtn').addEventListener('click', async () => {
       const email = emailEl.value.trim();
-      if (!email) { showError('Enter your email first.'); return; }
-      try{
+      if (!email) return statusEl.textContent = 'Enter your email first.';
+      try {
         await auth.sendPasswordResetEmail(email);
-        showSuccess('Password reset email sent.');
-      }catch(err){
-        showError(prettyAuthError(err));
-      }
+        statusEl.textContent = 'Password reset email sent.';
+        statusEl.style.color = 'var(--accent)';
+      } catch (e) { statusEl.textContent = e.message; }
     });
 
-    // Login submit
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = emailEl.value.trim();
-      const pass  = pwEl.value;
-
-      if (!email || !pass) { showError('Please fill in email and password.'); return; }
-
-      try{
-        setLoading(true);
-        await auth.setPersistence(rememberEl.checked
-          ? firebase.auth.Auth.Persistence.LOCAL
-          : firebase.auth.Auth.Persistence.SESSION
-        );
+      const pass = pwEl.value;
+      if (!email || !pass) return statusEl.textContent = 'Please fill in email and password.';
+      try {
+        loginBtn.disabled = true;
+        await auth.setPersistence(rememberEl.checked ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
         const { user } = await auth.signInWithEmailAndPassword(email, pass);
-        // Route based on the role the user PICKED (validated against Firestore).
         await routeAfterLogin(user.uid);
-      }catch(err){
-        showError(prettyAuthError(err));
+      } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.style.color = '#ff6b6b';
       } finally {
-        setLoading(false);
+        loginBtn.disabled = false;
       }
     });
-
-    function prettyAuthError(err){
-      const code = err && err.code ? String(err.code) : '';
-      switch(code){
-        case 'auth/invalid-email': return 'Invalid email address.';
-        case 'auth/user-disabled': return 'This account has been disabled.';
-        case 'auth/user-not-found': return 'No account found with this email.';
-        case 'auth/wrong-password': return 'Incorrect password.';
-        case 'auth/too-many-requests': return 'Too many attempts. Try again later.';
-        default: return err && err.message ? err.message : 'Authentication error.';
-      }
-    }
   </script>
 </body>
 </html>
