@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login — IronPump</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+
+  <!-- Firebase compat SDKs (best for plain HTML on GitHub Pages) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-storage-compat.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    :root{
+      --accent:#97FB57;   /* neon green */
+      --bg:#121212;       /* near-black */
+      --muted:#909090;    /* gray */
+      --light:#F6F2F2;    /* off-white */
+    }
+    html,body{ height:100%; }
+    body{
+      font-family:'Inter',sans-serif;
+      background:var(--bg);
+      color:var(--light);
+    }
+    .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
+    .card { background:#171717; border:1px solid rgba(144,144,144,0.35); }
+    .accent-text{ color:var(--accent); }
+    .btn-accent{
+      background:var(--accent);
+      color:var(--bg);
+      box-shadow:0 0 12px rgba(151,251,87,0.45), inset 0 0 0 1px rgba(18,18,18,0.4);
+      transition:filter .15s ease, transform .05s ease;
+    }
+    .btn-accent:hover{ filter:brightness(.95); }
+    .btn-accent:active{ transform:translateY(1px); }
+    .btn-ghost{
+      background:#232323;
+      color:var(--light);
+      border:1px solid rgba(144,144,144,0.35);
+      transition:background .15s ease, transform .05s ease;
+    }
+    .btn-ghost:hover{ background:#2a2a2a; }
+    .text-muted{ color:var(--muted); }
+    .input{
+      width:100%; padding:.6rem .75rem; border-radius:.75rem;
+      background:#1e1e1e; border:1px solid rgba(144,144,144,.35); outline:none;
+    }
+    .input:focus{ outline:2px solid var(--accent); }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <main class="w-full max-w-md">
+    <!-- Header / Logo -->
+    <div class="text-center mb-6">
+      <h1 class="text-3xl font-bold tracking-tight">
+        <span class="accent-text">Iron</span>Pump
+      </h1>
+      <p class="text-sm text-muted mt-1">Welcome back! Log in to your account.</p>
+    </div>
+
+    <!-- Card -->
+    <section class="panel rounded-2xl p-6">
+      <form id="loginForm" class="space-y-4" novalidate>
+        <div>
+          <label for="email" class="block text-sm mb-1">Email</label>
+          <input id="email" type="email" required class="input" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="password" class="block text-sm">Password</label>
+            <button type="button" id="forgotBtn" class="text-xs accent-text hover:underline">Forgot password?</button>
+          </div>
+          <div class="relative">
+            <input id="password" type="password" required class="input pr-10" placeholder="••••••••" autocomplete="current-password"/>
+            <button type="button" id="togglePw" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Toggle password">
+              <i data-feather="eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <label class="inline-flex items-center gap-2 text-sm">
+            <input id="remember" type="checkbox" class="accent-[var(--accent)]">
+            <span>Remember me</span>
+          </label>
+          <a href="signup.html" class="text-sm accent-text hover:underline">Create client account</a>
+        </div>
+
+        <button id="loginBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
+          <i data-feather="log-in" class="w-4 h-4"></i><span>Log In</span>
+        </button>
+
+        <div class="text-center text-sm">
+          <span class="text-muted">Are you a trainer?</span>
+          <a href="signup-trainer.html" class="accent-text hover:underline">Register here</a>
+        </div>
+
+        <!-- Status / Errors -->
+        <p id="status" class="text-sm mt-2 h-5"></p>
+      </form>
+    </section>
+
+    <p class="text-center text-xs text-muted mt-4">
+      By continuing you agree to our Terms & Privacy Policy.
+    </p>
+  </main>
+
+  <script>
+    feather.replace();
+
+    // ---- Firebase Init (using your config) ----
+    const firebaseConfig = {
+      apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
+      authDomain: "ironpump-gym-tracker.firebaseapp.com",
+      projectId: "ironpump-gym-tracker",
+      storageBucket: "ironpump-gym-tracker.firebasestorage.app",
+      messagingSenderId: "267000647709",
+      appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
+      measurementId: "G-BG3TDDWXZH"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    const auth = firebase.auth();
+
+    // If already logged in, go to index (or ?next=...)
+    auth.onAuthStateChanged((u) => {
+      if (u) {
+        const urlParams = new URLSearchParams(location.search);
+        const next = urlParams.get('next') || 'index.html';
+        location.href = next;
+      }
+    });
+
+    // ---- UI helpers ----
+    const emailEl = document.getElementById('email');
+    const pwEl    = document.getElementById('password');
+    const rememberEl = document.getElementById('remember');
+    const statusEl   = document.getElementById('status');
+    const loginBtn   = document.getElementById('loginBtn');
+
+    function setLoading(isLoading){
+      loginBtn.disabled = isLoading;
+      loginBtn.style.opacity = isLoading ? 0.7 : 1;
+      statusEl.textContent = isLoading ? 'Signing in…' : '';
+      statusEl.style.color = isLoading ? 'var(--muted)' : '';
+    }
+    function showError(msg){
+      statusEl.textContent = msg;
+      statusEl.style.color = '#ff6b6b';
+    }
+    function showSuccess(msg){
+      statusEl.textContent = msg;
+      statusEl.style.color = 'var(--accent)';
+    }
+
+    // Toggle password visibility
+    document.getElementById('togglePw').addEventListener('click', () => {
+      const t = pwEl.getAttribute('type') === 'password' ? 'text' : 'password';
+      pwEl.setAttribute('type', t);
+      const icon = t === 'password' ? 'eye' : 'eye-off';
+      document.querySelector('#togglePw i').setAttribute('data-feather', icon);
+      feather.replace();
+    });
+
+    // Forgot password
+    document.getElementById('forgotBtn').addEventListener('click', async () => {
+      const email = emailEl.value.trim();
+      if (!email) { showError('Enter your email first.'); return; }
+      try{
+        await auth.sendPasswordResetEmail(email);
+        showSuccess('Password reset email sent.');
+      }catch(err){
+        showError(prettyAuthError(err));
+      }
+    });
+
+    // Login submit
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = emailEl.value.trim();
+      const pass  = pwEl.value;
+
+      if (!email || !pass) { showError('Please fill in email and password.'); return; }
+
+      try{
+        setLoading(true);
+        // Persistence based on "Remember me"
+        await auth.setPersistence(rememberEl.checked
+          ? firebase.auth.Auth.Persistence.LOCAL
+          : firebase.auth.Auth.Persistence.SESSION
+        );
+        await auth.signInWithEmailAndPassword(email, pass);
+        // Redirect happens via onAuthStateChanged
+      }catch(err){
+        setLoading(false);
+        showError(prettyAuthError(err));
+      }
+    });
+
+    function prettyAuthError(err){
+      const code = err && err.code ? String(err.code) : '';
+      switch(code){
+        case 'auth/invalid-email': return 'Invalid email address.';
+        case 'auth/user-disabled': return 'This account has been disabled.';
+        case 'auth/user-not-found': return 'No account found with this email.';
+        case 'auth/wrong-password': return 'Incorrect password.';
+        case 'auth/too-many-requests': return 'Too many attempts. Try again later.';
+        default: return err.message || 'Authentication error.';
+      }
+    }
+  </script>
+</body>
+</html>

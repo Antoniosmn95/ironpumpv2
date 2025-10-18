@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Trainer Dashboard — IronPump</title>
+
+  <!-- Tailwind + Feather -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+
+  <!-- Firebase compat (same versions you’ve been using) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-storage-compat.js"></script>
+
+  <!-- Auth guard -->
+  <script src="auth-guard.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    :root{
+      --accent:#97FB57;   /* neon green */
+      --bg:#121212;       /* near-black */
+      --muted:#909090;    /* gray */
+      --light:#F6F2F2;    /* off-white */
+    }
+    html,body{height:100%}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
+    .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
+    .card{background:#171717;border:1px solid rgba(144,144,144,.35)}
+    .accent-text{color:var(--accent)}
+    .accent-chip{background:rgba(151,251,87,.12);color:var(--accent);border:1px solid rgba(151,251,87,.45)}
+    .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 0 12px rgba(151,251,87,.45), inset 0 0 0 1px rgba(18,18,18,.4);transition:filter .15s ease, transform .05s ease}
+    .btn-accent:hover{filter:brightness(.95)}
+    .btn-accent:active{transform:translateY(1px)}
+    .btn-ghost{background:#232323;color:var(--light);border:1px solid rgba(144,144,144,.35)}
+    .btn-ghost:hover{background:#2a2a2a}
+    .text-muted{color:var(--muted)}
+    .divider{border-color:rgba(144,144,144,.35)}
+    .pill{border-radius:9999px;padding:.25rem .6rem;border:1px solid rgba(151,251,87,.35);background:rgba(151,251,87,.08);font-size:.75rem}
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="panel p-4">
+    <div class="container mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="index.html" class="p-2 rounded-full hover:bg-[#1e1e1e]" title="Client App">
+          <i data-feather="arrow-left" class="accent-text"></i>
+        </a>
+        <h1 class="text-xl font-bold">
+          Trainer <span class="accent-text">Dashboard</span>
+        </h1>
+        <span id="trainerName" class="ml-3 text-sm text-muted"></span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="signup-trainer.html" class="btn-ghost px-3 py-2 rounded-lg hidden" id="completeProfileBtn">
+          Complete Profile
+        </a>
+        <button class="btn-ghost px-3 py-2 rounded-lg" onclick="AuthGuard.signOut()">
+          <i data-feather="log-out" class="inline mr-1"></i> Sign out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="container mx-auto p-4 flex-1">
+    <!-- Top KPIs -->
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div class="panel rounded-xl p-4">
+        <p class="text-muted text-sm">Total Clients</p>
+        <p class="text-3xl font-semibold mt-1" id="kpiClients">—</p>
+      </div>
+      <div class="panel rounded-xl p-4">
+        <p class="text-muted text-sm">Active this week</p>
+        <p class="text-3xl font-semibold mt-1" id="kpiActive">—</p>
+      </div>
+      <div class="panel rounded-xl p-4">
+        <p class="text-muted text-sm">Sessions (30d)</p>
+        <p class="text-3xl font-semibold mt-1" id="kpiSessions">—</p>
+      </div>
+      <div class="panel rounded-xl p-4">
+        <p class="text-muted text-sm">Pending Requests</p>
+        <p class="text-3xl font-semibold mt-1" id="kpiPending">—</p>
+      </div>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <!-- Clients list -->
+      <section class="panel rounded-xl p-4 lg:col-span-2">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-semibold">Your Clients</h2>
+          <div class="flex gap-2">
+            <input id="searchInput" class="card px-3 py-2 rounded-lg text-sm" placeholder="Search name or email…">
+            <button id="refreshBtn" class="btn-ghost px-3 rounded-lg"><i data-feather="refresh-cw"></i></button>
+          </div>
+        </div>
+        <div id="clientsList" class="divide-y divider">
+          <div class="text-muted text-sm p-4">Loading clients…</div>
+        </div>
+      </section>
+
+      <!-- Right column: Add client + Pending -->
+      <aside class="space-y-4">
+        <!-- Add client -->
+        <section class="panel rounded-xl p-4">
+          <h3 class="font-semibold mb-2">Add Client by Email</h3>
+          <p class="text-sm text-muted mb-3">Links an existing signed-up user to you (sets <code>trainerId</code> on their profile).</p>
+          <form id="addClientForm" class="space-y-2">
+            <input id="clientEmail" type="email" required placeholder="client@email.com" class="w-full card px-3 py-2 rounded-lg">
+            <button class="btn-accent w-full px-3 py-2 rounded-lg" type="submit">
+              <i data-feather="user-plus" class="inline mr-1"></i> Link Client
+            </button>
+          </form>
+          <div id="addClientMsg" class="text-sm mt-2"></div>
+        </section>
+
+        <!-- Pending requests -->
+        <section class="panel rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold">Pending Join Requests</h3>
+            <button id="refreshPendingBtn" class="btn-ghost p-2 rounded-lg"><i data-feather("refresh-cw")></i></button>
+          </div>
+          <div id="pendingList" class="divide-y divider">
+            <div class="text-muted text-sm p-3">No pending requests.</div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <!-- Client detail modal -->
+  <div id="clientModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+    <div class="panel rounded-xl p-6 w-full max-w-2xl mx-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-semibold">Client</h3>
+        <button id="closeClientModal" class="p-2 rounded hover:bg-[#2a2a2a]">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+
+      <div id="clientHeader" class="flex items-center gap-3 mb-3">
+        <!-- avatar -->
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="panel rounded-lg p-3">
+          <h4 class="font-semibold mb-2">Profile</h4>
+          <dl class="text-sm space-y-1" id="clientProfile">
+            <!-- entries -->
+          </dl>
+        </div>
+        <div class="panel rounded-lg p-3">
+          <h4 class="font-semibold mb-2">Recent Logs</h4>
+          <div id="clientLogs" class="space-y-2">
+            <!-- logs -->
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 flex items-center justify-end gap-2">
+        <a id="openEmail" class="btn-ghost px-3 py-2 rounded-lg" target="_blank" rel="noopener">Email</a>
+        <button id="unlinkClientBtn" class="btn-ghost px-3 py-2 rounded-lg">Unlink</button>
+        <button id="closeClientModal2" class="btn-accent px-3 py-2 rounded-lg">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Init + guard
+    AuthGuard.init();
+    AuthGuard.requireRole('trainer');
+
+    const db = firebase.firestore();
+    let currentUser = null;
+    let trainerProfile = null;
+    let clientsCache = [];
+
+    const el = (id)=>document.getElementById(id);
+
+    const trainerNameEl = el('trainerName');
+    const kpiClientsEl  = el('kpiClients');
+    const kpiActiveEl   = el('kpiActive');
+    const kpiSessionsEl = el('kpiSessions');
+    const kpiPendingEl  = el('kpiPending');
+    const clientsListEl = el('clientsList');
+    const pendingListEl = el('pendingList');
+    const addClientForm = el('addClientForm');
+    const addClientMsg  = el('addClientMsg');
+    const searchInput   = el('searchInput');
+
+    const clientModal   = el('clientModal');
+    const closeClientModal = el('closeClientModal');
+    const closeClientModal2= el('closeClientModal2');
+    const clientHeader  = el('clientHeader');
+    const clientProfile = el('clientProfile');
+    const clientLogs    = el('clientLogs');
+    const openEmailLink = el('openEmail');
+    const unlinkClientBtn = el('unlinkClientBtn');
+
+    feather.replace();
+
+    // Load signed-in trainer + profile
+    AuthGuard.onAuth(async (user)=>{
+      currentUser = user;
+      if(!user) return;
+      trainerProfile = await AuthGuard.getProfile();
+      trainerNameEl.textContent = trainerProfile?.fullName ? `Hi, ${trainerProfile.fullName}` : '';
+      if(!trainerProfile?.fullName) {
+        el('completeProfileBtn').classList.remove('hidden');
+      }
+      await loadKPIs();
+      await loadClients();
+      await loadPending();
+    });
+
+    // ------- KPIs -------
+    async function loadKPIs(){
+      if(!currentUser) return;
+      // Total clients
+      const q1 = await db.collection('users')
+        .where('role','==','client')
+        .where('trainerId','==', currentUser.uid)
+        .get();
+      kpiClientsEl.textContent = q1.size;
+
+      // Sessions 30d (sum of logs for these clients)
+      const since = new Date(); since.setDate(since.getDate()-30);
+      const sinceISO = since.toISOString().slice(0,10);
+
+      let totalSessions = 0, activeThisWeek = 0;
+      const sinceWeek = new Date(); sinceWeek.setDate(sinceWeek.getDate()-7);
+      const sinceWeekISO = sinceWeek.toISOString().slice(0,10);
+
+      // naive approach: fetch each client’s recent logs (ensure security rules permit trainer read)
+      const clientIds = q1.docs.map(d=>d.id);
+      for (const cid of clientIds) {
+        const logsSnap = await db.collection('workouts').doc(cid).collection('logs')
+          .where('date','>=', sinceISO)
+          .orderBy('date','desc')
+          .get();
+        totalSessions += logsSnap.size;
+        const weekSnap = logsSnap.docs.filter(x => (x.data().date || '') >= sinceWeekISO);
+        if (weekSnap.length > 0) activeThisWeek++;
+      }
+      kpiSessionsEl.textContent = totalSessions;
+      kpiActiveEl.textContent = activeThisWeek;
+    }
+
+    // ------- Clients -------
+    async function loadClients(){
+      if(!currentUser) return;
+      clientsListEl.innerHTML = `<div class="text-muted text-sm p-4">Loading clients…</div>`;
+      const qs = await db.collection('users')
+        .where('role','==','client')
+        .where('trainerId','==', currentUser.uid)
+        .orderBy('fullName','asc')
+        .get();
+
+      clientsCache = qs.docs.map(d=>({ id:d.id, ...d.data() }));
+      renderClients(clientsCache);
+    }
+
+    function renderClients(list){
+      if(!list.length){
+        clientsListEl.innerHTML = `<div class="text-muted text-sm p-4">No clients yet. Link a client using the form on the right.</div>`;
+        return;
+      }
+      clientsListEl.innerHTML = list.map(c=>{
+        const avatar = c.photoURL || 'https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57';
+        return `
+          <div class="p-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <img src="${avatar}" class="w-10 h-10 rounded-full object-cover border border-[rgba(151,251,87,.35)]" alt="">
+              <div>
+                <div class="font-medium">${c.fullName || '—'}</div>
+                <div class="text-xs text-muted">${c.email || ''}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              ${c.daysPerWeek ? `<span class="pill">${c.daysPerWeek} d/wk</span>`:''}
+              <button class="btn-ghost px-3 py-2 rounded-lg" onclick='openClient("${c.id}")'>
+                <i data-feather="eye" class="inline mr-1"></i> View
+              </button>
+            </div>
+          </div>`;
+      }).join('');
+      feather.replace();
+    }
+
+    // search
+    searchInput.addEventListener('input', ()=>{
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = clientsCache.filter(c =>
+        (c.fullName||'').toLowerCase().includes(q) ||
+        (c.email||'').toLowerCase().includes(q)
+      );
+      renderClients(filtered);
+    });
+
+    // ------- Add client by email -------
+    addClientForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      addClientMsg.textContent = '';
+      const email = el('clientEmail').value.trim().toLowerCase();
+      if(!email) return;
+
+      try{
+        // find user with that email (requires an index on users.email)
+        const snap = await db.collection('users').where('email','==',email).limit(1).get();
+        if(snap.empty){
+          addClientMsg.className = 'text-sm text-red-400';
+          addClientMsg.textContent = 'No user with that email. Ask them to sign up first.';
+          return;
+        }
+        const userDoc = snap.docs[0];
+        await db.collection('users').doc(userDoc.id).set({
+          trainerId: currentUser.uid
+        }, { merge:true });
+
+        addClientMsg.className = 'text-sm text-green-400';
+        addClientMsg.textContent = 'Client linked!';
+        el('clientEmail').value = '';
+        await loadClients();
+        await loadKPIs();
+      }catch(err){
+        console.error(err);
+        addClientMsg.className = 'text-sm text-red-400';
+        addClientMsg.textContent = 'Failed to link client: '+err.message;
+      }
+    });
+
+    // ------- Pending join requests (optional flow) -------
+    async function loadPending(){
+      if(!currentUser) return;
+      const qs = await db.collection('join_requests')
+        .where('trainerId','==', currentUser.uid)
+        .where('status','==','pending')
+        .orderBy('createdAt','desc')
+        .get();
+
+      kpiPendingEl.textContent = qs.size;
+
+      if(qs.empty){
+        pendingListEl.innerHTML = `<div class="text-muted text-sm p-3">No pending requests.</div>`;
+        return;
+      }
+
+      pendingListEl.innerHTML = qs.docs.map(d=>{
+        const r = d.data();
+        return `
+          <div class="p-3 flex items-center justify-between">
+            <div>
+              <div class="font-medium">${r.clientName || r.clientEmail || 'Client'}</div>
+              <div class="text-xs text-muted">${r.clientEmail || ''}</div>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn-accent px-3 py-1 rounded-lg text-sm" onclick='approveReq("${d.id}","${r.clientUid||''}")'>Approve</button>
+              <button class="btn-ghost px-3 py-1 rounded-lg text-sm" onclick='rejectReq("${d.id}")'>Reject</button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function approveReq(reqId, clientUid){
+      try{
+        const reqRef = db.collection('join_requests').doc(reqId);
+        await reqRef.set({ status:'approved' },{merge:true});
+        if(clientUid){
+          await db.collection('users').doc(clientUid).set({ trainerId: currentUser.uid },{merge:true});
+        }
+        await loadPending();
+        await loadClients();
+        await loadKPIs();
+      }catch(e){ alert('Error: '+e.message); }
+    }
+    async function rejectReq(reqId){
+      try{
+        await db.collection('join_requests').doc(reqId).set({ status:'rejected' },{merge:true});
+        await loadPending();
+      }catch(e){ alert('Error: '+e.message); }
+    }
+
+    // ------- Client modal -------
+    window.openClient = async function(uid){
+      // fetch profile
+      const doc = await db.collection('users').doc(uid).get();
+      if(!doc.exists){ alert('Client not found'); return; }
+      const c = { id: uid, ...doc.data() };
+
+      const avatar = c.photoURL || 'https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57';
+
+      clientHeader.innerHTML = `
+        <img src="${avatar}" class="w-12 h-12 rounded-full object-cover border border-[rgba(151,251,87,.35)]" alt="">
+        <div>
+          <div class="font-semibold">${c.fullName || '—'}</div>
+          <div class="text-xs text-muted">${c.email || ''}</div>
+        </div>
+        <span class="ml-auto pill">${(c.daysPerWeek||'—')} d/wk</span>
+      `;
+
+      clientProfile.innerHTML = `
+        <div><span class="text-muted">Age:</span> ${c.age ?? '—'}</div>
+        <div><span class="text-muted">Weight:</span> ${c.weight ?? '—'} kg</div>
+        <div><span class="text-muted">Height:</span> ${c.height ?? '—'} cm</div>
+        <div><span class="text-muted">Country:</span> ${c.country ?? '—'}</div>
+        <div><span class="text-muted">Languages:</span> ${(c.languages||[]).join(', ') || '—'}</div>
+        <div><span class="text-muted">Training:</span> ${c.trainingPlace || '—'}</div>
+        <div><span class="text-muted">Notes:</span> ${c.additionalInfo || '—'}</div>
+      `;
+
+      // logs
+      const logsSnap = await db.collection('workouts').doc(uid).collection('logs')
+        .orderBy('date','desc').limit(10).get();
+      if (logsSnap.empty){
+        clientLogs.innerHTML = `<div class="text-muted text-sm">No logs yet.</div>`;
+      } else {
+        clientLogs.innerHTML = logsSnap.docs.map(d=>{
+          const x = d.data();
+          const dateDisp = x.date || d.id;
+          const day = x.day || '';
+          return `
+            <div class="card rounded-lg p-2 flex items-center justify-between">
+              <div>
+                <div class="font-medium">${dateDisp}</div>
+                <div class="text-xs text-muted">${day}</div>
+              </div>
+              <span class="pill">${(x.exercisesCompleted ?? 0)} exercises</span>
+            </div>`;
+        }).join('');
+      }
+
+      // action links
+      openEmailLink.href = c.email ? `mailto:${encodeURIComponent(c.email)}` : '#';
+      unlinkClientBtn.onclick = async ()=>{
+        if(!confirm('Unlink this client from you?')) return;
+        await db.collection('users').doc(uid).set({ trainerId: firebase.firestore.FieldValue.delete() },{merge:true});
+        clientModal.classList.add('hidden');
+        await loadClients();
+        await loadKPIs();
+      };
+
+      clientModal.classList.remove('hidden');
+      feather.replace();
+    }
+
+    [closeClientModal, closeClientModal2].forEach(b=> b.addEventListener('click', ()=> clientModal.classList.add('hidden')));
+    clientModal.addEventListener('click', (e)=>{ if(e.target===clientModal) clientModal.classList.add('hidden'); });
+
+    // buttons
+    el('refreshBtn').addEventListener('click', ()=>{ loadClients(); loadKPIs(); });
+    el('refreshPendingBtn')?.addEventListener('click', loadPending);
+  </script>
+</body>
+</html>

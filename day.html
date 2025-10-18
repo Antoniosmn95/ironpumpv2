@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Day — IronPump</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+
+  <!-- PDF libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    :root{
+      --accent:#97FB57;   /* neon green */
+      --bg:#121212;       /* near-black */
+      --muted:#909090;    /* mid gray */
+      --light:#F6F2F2;    /* off-white */
+    }
+    html,body{ height:100%; }
+    body{
+      font-family:'Inter',sans-serif;
+      background:var(--bg);
+      color:var(--light);
+    }
+
+    /* Surfaces */
+    .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
+    .card{ background:#171717; border:1px solid rgba(144,144,144,0.35); }
+    .subtle{ background:#141414; }
+
+    /* Accent */
+    .accent-text{ color:var(--accent); }
+    .accent-chip{
+      background:rgba(151,251,87,0.12);
+      color:var(--accent);
+      border:1px solid rgba(151,251,87,0.45);
+    }
+    .btn-accent{
+      background:var(--accent);
+      color:var(--bg);
+      box-shadow:0 0 12px rgba(151,251,87,0.45), inset 0 0 0 1px rgba(18,18,18,0.4);
+      transition:filter .15s ease, transform .05s ease;
+    }
+    .btn-accent:hover{ filter:brightness(.95); }
+    .btn-accent:active{ transform:translateY(1px); }
+    .btn-ghost{
+      background:#232323;
+      color:var(--light);
+      border:1px solid rgba(144,144,144,0.35);
+      transition:background .15s ease, transform .05s ease;
+    }
+    .btn-ghost:hover{ background:#2a2a2a; }
+    .btn-ghost:active{ transform:translateY(1px); }
+
+    .text-muted{ color:var(--muted); }
+    .divider{ border-color:rgba(144,144,144,0.35); }
+
+    .rest-timer{
+      transition:all .3s ease;
+      box-shadow:0 0 24px rgba(151,251,87,.35), inset 0 0 0 2px rgba(18,18,18,.4);
+    }
+
+    a.link{ color:var(--accent); text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="panel p-4 shadow-md">
+      <div class="container mx-auto flex items-center justify-between">
+        <div class="flex items-center">
+          <button onclick="window.history.back()" class="mr-4 p-2 rounded-full hover:bg-[#1e1e1e] transition" aria-label="Back">
+            <i data-feather="arrow-left" class="accent-text"></i>
+          </button>
+          <h1 id="dayTitle" class="text-xl font-bold">Day — <span class="accent-text">Loading…</span></h1>
+        </div>
+        <div class="flex gap-2">
+          <button id="prevBtn" class="btn-ghost px-3 py-2 rounded-lg flex items-center" title="Previous day">
+            <i data-feather="chevron-left" class="mr-1"></i> Prev
+          </button>
+          <button id="nextBtn" class="btn-ghost px-3 py-2 rounded-lg flex items-center" title="Next day">
+            Next <i data-feather="chevron-right" class="ml-1"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Progress Bar -->
+    <div class="subtle h-2">
+      <div id="progressFill" class="h-full" style="width:0%; background:linear-gradient(90deg, rgba(151,251,87,.35), var(--accent));"></div>
+    </div>
+
+    <!-- Content -->
+    <main class="flex-grow container mx-auto p-4">
+      <div id="statusBox" class="panel p-4 rounded-xl mb-4 hidden"></div>
+      <div id="exWrap" class="space-y-4"></div>
+    </main>
+
+    <!-- Sticky actions -->
+    <div class="sticky bottom-0 panel border-t divider p-4 hidden" id="stickyBar">
+      <div class="flex flex-col md:flex-row gap-2">
+        <button id="finishDayBtn" class="flex-1 btn-accent py-3 rounded-lg font-medium transition flex items-center justify-center">
+          <i data-feather="check-circle" class="mr-2"></i> Finish Day
+        </button>
+        <button id="exportPDF" class="flex-1 btn-ghost py-3 rounded-lg font-medium transition flex items-center justify-center">
+          <i data-feather="download" class="mr-2"></i> Export Day PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timer Modal -->
+  <div id="timerModal" class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50">
+    <div class="panel rounded-xl p-6 w-full max-w-xs mx-4 text-center">
+      <h3 class="text-lg font-semibold mb-4">Rest Timer</h3>
+      <div class="rest-timer bg-[var(--accent)] text-[var(--bg)] text-4xl font-bold rounded-full w-40 h-40 mx-auto flex items-center justify-center mb-6" id="timerFace">
+        01:30
+      </div>
+      <div class="flex justify-center space-x-3">
+        <button id="pauseTimer" class="btn-ghost px-4 py-2 rounded-lg flex items-center"><i data-feather="pause" class="mr-1"></i>Pause</button>
+        <button id="resetTimer" class="btn-ghost px-4 py-2 rounded-lg flex items-center"><i data-feather="refresh-cw" class="mr-1"></i>Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase init (your config & initializeApp) -->
+  <script type="module" src="firebase-init.js"></script>
+  <!-- Optional: block unauthenticated access -->
+  <!-- <script type="module" src="auth-guard.js"></script> -->
+
+  <!-- App logic -->
+  <script type="module">
+    import {
+      getAuth, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+    import {
+      getFirestore, doc, collection, getDoc, addDoc, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+    const auth = getAuth();
+    const db   = getFirestore();
+
+    // --- Utils ---
+    function getDayParam(){
+      const n = Number(new URLSearchParams(location.search).get('d') || '1');
+      return Number.isFinite(n) && n >= 1 ? n : 1; // 1-based
+    }
+    let DAY_INDEX = getDayParam();
+
+    function fmtReps(x){ return (x ?? '').toString().replace('-', '–'); }
+
+    function showStatus(html, type='info'){
+      const box = document.getElementById('statusBox');
+      const color = type==='error' ? '#ff6b6b' : type==='warn' ? '#ffcc66' : 'var(--accent)';
+      box.classList.remove('hidden');
+      box.innerHTML = `
+        <div class="flex items-start gap-3">
+          <div class="p-2 rounded-full" style="background:rgba(151,251,87,0.12); border:1px solid rgba(151,251,87,0.35);">
+            <i data-feather="${type==='error'?'alert-triangle':type==='warn'?'alert-circle':'info'}" style="color:${color}"></i>
+          </div>
+          <div class="text-sm">${html}</div>
+        </div>`;
+      feather.replace();
+    }
+
+    function clearStatus(){
+      const box = document.getElementById('statusBox');
+      box.classList.add('hidden');
+      box.innerHTML = '';
+    }
+
+    // --- Load assigned program from Firestore ---
+    async function loadAssignedProgram(uid){
+      // programs/{uid}/assigned/active
+      const ref = doc(collection(doc(collection(db,'programs'), uid), 'assigned'), 'active');
+      const snap = await getDoc(ref);
+      if(!snap.exists()) return null;
+      return snap.data(); // { name, days: [{label, exercises:[{name, sets, reps, rest, note}]}] }
+    }
+
+    // --- Render ---
+    function renderEmpty(){
+      document.getElementById('dayTitle').innerHTML = `Day — <span class="accent-text">No Program</span>`;
+      document.getElementById('exWrap').innerHTML = `
+        <div class="panel p-6 rounded-xl">
+          <p class="mb-2">No active program found for your account.</p>
+          <p class="text-muted">Ask your trainer to assign a program, or go back to <a class="link" href="index.html">Home</a>.</p>
+        </div>`;
+    }
+
+    function renderOutOfRange(total){
+      document.getElementById('dayTitle').innerHTML = `Day ${DAY_INDEX} — <span class="accent-text">Out of Range</span>`;
+      document.getElementById('exWrap').innerHTML = `
+        <div class="panel p-6 rounded-xl">
+          <p class="mb-2">Your program has <b>${total}</b> day(s). You requested <b>Day ${DAY_INDEX}</b>.</p>
+          <div class="flex gap-2 mt-3">
+            <button class="btn-accent px-3 py-2 rounded-lg" onclick="location.href='day.html?d=1'">Go to Day 1</button>
+            <a class="btn-ghost px-3 py-2 rounded-lg" href="index.html">Back to Home</a>
+          </div>
+        </div>`;
+    }
+
+    function exerciseCard(idx, ex) {
+      const sets = Number(ex.sets) || 3;
+      let setsHtml = '';
+      for (let s = 1; s <= sets; s++) {
+        setsHtml += `
+          <div class="set-container ${s < sets ? 'border-b divider pb-4' : ''}">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-medium">Set ${s}</h3>
+              <button class="rest-btn btn-ghost px-3 py-1 rounded-lg text-sm flex items-center" data-rest>
+                <i data-feather="clock" class="mr-1 w-4 h-4 accent-text"></i> Rest ${(ex.rest || 90)}s
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-1">Weight (kg)</label>
+                <input type="number" class="w-full px-3 py-2 card rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" data-weight>
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">Reps</label>
+                <input type="number" class="w-full px-3 py-2 card rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" data-reps>
+              </div>
+            </div>
+          </div>`;
+      }
+      const meta = `<span class="accent-chip px-2 py-1 rounded-full text-xs font-medium">${sets} sets | ${fmtReps(ex.reps) || '—'} reps</span>`;
+      const note = ex.note ? `<span class="text-sm text-muted"> — Note: ${ex.note}</span>` : '';
+      return `
+        <section class="panel rounded-xl shadow-md p-6" data-exercise data-index="${idx}">
+          <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold">${idx + 1}. ${ex.name || 'Exercise'}${note}</h2>
+            ${meta}
+          </div>
+          <div class="mb-4">
+            <textarea class="w-full px-3 py-2 card rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-sm placeholder:opacity-70"
+                      rows="2" placeholder="Notes for this exercise..." data-notes></textarea>
+          </div>
+          <div class="space-y-4 mb-6">${setsHtml}</div>
+          <button class="finish-exercise-btn w-full btn-ghost py-3 rounded-lg font-medium disabled:opacity-50 transition" disabled data-finish>
+            Complete all sets to finish exercise
+          </button>
+        </section>`;
+    }
+
+    function renderDay(dayObj, dayIndex, totalDays){
+      const label = dayObj.label || `Day ${dayIndex}`;
+      document.getElementById('dayTitle').innerHTML = `${label} — <span class="accent-text">${dayObj.exercises?.length || 0} exercises</span>`;
+
+      const exs = Array.isArray(dayObj.exercises) ? dayObj.exercises : [];
+      const wrap = document.getElementById('exWrap');
+      if (!exs.length){
+        wrap.innerHTML = `<div class="panel p-6 rounded-xl">This day has no exercises yet.</div>`;
+      } else {
+        wrap.innerHTML = exs.map((ex, i) => exerciseCard(i, ex)).join('');
+      }
+      feather.replace();
+
+      // Prev/Next enable/disable
+      document.getElementById('prevBtn').disabled = (dayIndex <= 1);
+      document.getElementById('nextBtn').disabled = (dayIndex >= totalDays);
+
+      // Progress + completion handlers
+      const progressFill = document.getElementById('progressFill');
+      const total = exs.length || 1;
+      const done = new Set();
+      const sticky = document.getElementById('stickyBar');
+
+      function updateProgress(){
+        const pct = (done.size / total) * 100;
+        progressFill.style.width = `${pct}%`;
+        if(done.size > 0) sticky.classList.remove('hidden');
+      }
+
+      // Enable finish buttons when all inputs populated for a card
+      wrap.addEventListener('input', e => {
+        const card = e.target.closest('[data-exercise]');
+        if(!card) return;
+        const weights = [...card.querySelectorAll('[data-weight]')];
+        const reps    = [...card.querySelectorAll('[data-reps]')];
+        const allFilled = weights.every(i => i.value !== '') && reps.every(i => i.value !== '');
+        const finishBtn = card.querySelector('[data-finish]');
+        finishBtn.disabled = !allFilled;
+        if(allFilled){
+          finishBtn.classList.remove('btn-ghost'); finishBtn.classList.add('btn-accent');
+          finishBtn.textContent='Finish Exercise';
+        } else {
+          finishBtn.classList.add('btn-ghost'); finishBtn.classList.remove('btn-accent');
+          finishBtn.textContent='Complete all sets to finish exercise';
+        }
+      });
+
+      wrap.addEventListener('click', e => {
+        const rest = e.target.closest('[data-rest]');
+        if(rest) { openTimer(dayObj.exercises?.[0]?.rest || 90); return; }
+
+        const btn = e.target.closest('[data-finish]');
+        if(!btn) return;
+        const card = btn.closest('[data-exercise]');
+        const idx = Number(card.dataset.index);
+        done.add(idx);
+        btn.disabled = true;
+        btn.textContent = 'Completed';
+        btn.classList.remove('btn-accent'); btn.classList.add('btn-ghost','opacity-80');
+        updateProgress();
+      });
+
+      // Export PDF
+      document.getElementById('exportPDF').onclick = () => exportDayPDF(label, exs);
+
+      // Finish Day - log to Firestore + localStorage
+      document.getElementById('finishDayBtn').onclick = async () => {
+        const user = auth.currentUser;
+        if(!user){ showStatus('You must be signed in to log your workout.','warn'); return; }
+
+        const iso = new Date().toISOString().slice(0,10);
+
+        // localStorage for calendar highlight
+        const logs = JSON.parse(localStorage.getItem('ironpump_logs') || '[]');
+        if(!logs.includes(iso)) {
+          logs.push(iso);
+          localStorage.setItem('ironpump_logs', JSON.stringify(logs));
+        }
+        const map = JSON.parse(localStorage.getItem('ironpump_daymap') || '{}');
+        map[iso] = label;
+        localStorage.setItem('ironpump_daymap', JSON.stringify(map));
+
+        // Firestore log
+        await addDoc(collection(doc(collection(db,'workout_logs'), user.uid), 'days'), {
+          date: iso,
+          dayLabel: label,
+          savedAt: serverTimestamp()
+        });
+
+        showStatus(`Logged <b>${label}</b> for <b>${iso}</b>. Check your calendar on the index page.`, 'info');
+      };
+    }
+
+    function exportDayPDF(label, exercises){
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(18);
+      doc.text(`Workout Summary — ${label}`, 105, 15, null, null, 'center');
+
+      doc.setFontSize(12);
+      const today = new Date();
+      doc.text(`Date: ${today.toLocaleDateString()}`, 14, 25);
+
+      const rows = [];
+      document.querySelectorAll('[data-exercise]').forEach((card, i) => {
+        const ex = exercises[i] || {};
+        const title = ex.name || `Exercise ${i+1}`;
+        const sets  = ex.sets || 3;
+        const reps  = fmtReps(ex.reps || '');
+        const note  = ex.note || '';
+        const userNote = card.querySelector('[data-notes]')?.value || '';
+        const setDetails = [];
+        card.querySelectorAll('.set-container').forEach((setEl, sIdx) => {
+          const w = setEl.querySelector('[data-weight]').value || '-';
+          const r = setEl.querySelector('[data-reps]').value || '-';
+          setDetails.push(`S${sIdx+1}: ${w}kg x ${r}`);
+        });
+        rows.push([`${i+1}. ${title}`, `${sets}`, reps || '—', note, userNote, setDetails.join(' | ') || '—']);
+      });
+
+      doc.autoTable({
+        startY: 30,
+        head: [['Exercise','Sets','Reps','Plan Notes','Your Notes','Logged Sets']],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor:[151,251,87], textColor:18 }
+      });
+
+      const fnameSafe = label.toLowerCase().replace(/\s+/g,'-');
+      doc.save(`ironpump-${fnameSafe}-${today.toISOString().slice(0,10)}.pdf`);
+    }
+
+    // --- Timer ---
+    let timerInterval, secondsLeft = 90;
+    const modal = document.getElementById('timerModal');
+    const timerFace = document.getElementById('timerFace');
+
+    function openTimer(sec=90){ secondsLeft = Number(sec)||90; modal.classList.remove('hidden'); startTimer(); }
+    function closeTimer(){ modal.classList.add('hidden'); timerFace.classList.remove('animate-pulse'); }
+    function startTimer(){
+      clearInterval(timerInterval); updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        secondsLeft--; updateTimerDisplay();
+        if (secondsLeft <= 0){
+          clearInterval(timerInterval);
+          if (navigator.vibrate) navigator.vibrate(300);
+          timerFace.classList.add('animate-pulse');
+        }
+      }, 1000);
+    }
+    function updateTimerDisplay(){
+      const m = String(Math.floor(secondsLeft/60)).padStart(2,'0');
+      const s = String(secondsLeft%60).padStart(2,'0');
+      timerFace.textContent = `${m}:${s}`;
+    }
+    document.getElementById('pauseTimer').addEventListener('click', ()=> clearInterval(timerInterval));
+    document.getElementById('resetTimer').addEventListener('click', ()=>{ secondsLeft = Math.max(0, secondsLeft); timerFace.classList.remove('animate-pulse'); });
+    modal.addEventListener('click', e => { if(e.target===modal) closeTimer(); });
+
+    // --- Navigation buttons ---
+    function goDay(delta, maxDays){
+      let next = DAY_INDEX + delta;
+      next = Math.max(1, Math.min(maxDays, next));
+      const url = new URL(location.href);
+      url.searchParams.set('d', next);
+      location.href = url.toString();
+    }
+    document.getElementById('prevBtn').addEventListener('click', ()=> goDay(-1, 999));
+    document.getElementById('nextBtn').addEventListener('click', ()=> goDay(+1, 999));
+
+    // --- Boot ---
+    onAuthStateChanged(auth, async (user) => {
+      if(!user){
+        renderEmpty();
+        showStatus('You are not signed in. Please <a class="link" href="login.html">log in</a>.', 'warn');
+        return;
+      }
+
+      try{
+        clearStatus();
+        const program = await loadAssignedProgram(user.uid);
+        if(!program || !Array.isArray(program.days) || program.days.length===0){
+          renderEmpty();
+          showStatus('No active program found. Your trainer can assign one from the dashboard.', 'info');
+          return;
+        }
+
+        const totalDays = program.days.length;
+        if (DAY_INDEX < 1 || DAY_INDEX > totalDays){
+          renderOutOfRange(totalDays);
+          return;
+        }
+
+        // Wire prev/next with correct bounds
+        document.getElementById('prevBtn').onclick = () => goDay(-1, totalDays);
+        document.getElementById('nextBtn').onclick = () => goDay(+1, totalDays);
+
+        renderDay(program.days[DAY_INDEX-1], DAY_INDEX, totalDays);
+      }catch(err){
+        console.error(err);
+        renderEmpty();
+        showStatus('Failed to load your program. Please retry or contact support.', 'error');
+      }
+    });
+
+    // Icons initial paint
+    feather.replace();
+  </script>
+</body>
+</html>

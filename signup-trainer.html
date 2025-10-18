@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Trainer Sign Up — IronPump</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+
+  <!-- Firebase compat SDKs (good for plain HTML / GitHub Pages) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-storage-compat.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    :root{
+      --accent:#97FB57;   /* neon green */
+      --bg:#121212;       /* near-black */
+      --muted:#909090;    /* gray */
+      --light:#F6F2F2;    /* off-white */
+    }
+    html,body{ height:100%; }
+    body{
+      font-family:'Inter',sans-serif;
+      background:var(--bg);
+      color:var(--light);
+    }
+    .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
+    .card { background:#171717; border:1px solid rgba(144,144,144,0.35); }
+    .accent-text{ color:var(--accent); }
+    .text-muted{ color:var(--muted); }
+    .btn-accent{
+      background:var(--accent);
+      color:var(--bg);
+      box-shadow:0 0 12px rgba(151,251,87,0.45), inset 0 0 0 1px rgba(18,18,18,0.4);
+      transition:filter .15s ease, transform .05s ease;
+    }
+    .btn-accent:hover{ filter:brightness(.95); }
+    .btn-accent:active{ transform:translateY(1px); }
+    .btn-ghost{
+      background:#232323;
+      color:var(--light);
+      border:1px solid rgba(144,144,144,0.35);
+      transition:background .15s ease, transform .05s ease;
+    }
+    .btn-ghost:hover{ background:#2a2a2a; }
+    .input{
+      width:100%; padding:.6rem .75rem; border-radius:.75rem;
+      background:#1e1e1e; border:1px solid rgba(144,144,144,.35); outline:none;
+    }
+    .input:focus{ outline:2px solid var(--accent); }
+    .grid-2{ display:grid; grid-template-columns:1fr; gap:1rem; }
+    @media(min-width:768px){ .grid-2{ grid-template-columns:1fr 1fr; } }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <main class="w-full max-w-3xl">
+    <div class="mb-6 text-center">
+      <h1 class="text-3xl font-bold tracking-tight">
+        <span class="accent-text">Iron</span>Pump
+      </h1>
+      <p class="text-sm text-muted mt-1">Trainer registration</p>
+    </div>
+
+    <section class="panel rounded-2xl p-6">
+      <form id="signupForm" class="space-y-5" novalidate>
+        <!-- Account -->
+        <div class="grid-2">
+          <div>
+            <label class="block text-sm mb-1">Full Name</label>
+            <input id="fullName" type="text" class="input" placeholder="Your full name" required/>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Email</label>
+            <input id="email" type="email" class="input" placeholder="coach@example.com" autocomplete="email" required/>
+          </div>
+          <div class="relative">
+            <label class="block text-sm mb-1">Password</label>
+            <input id="password" type="password" class="input pr-10" placeholder="••••••••" autocomplete="new-password" minlength="6" required/>
+            <button type="button" id="togglePw" class="absolute right-2 top-8 p-1 text-muted" aria-label="Toggle password">
+              <i data-feather="eye"></i>
+            </button>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Confirm Password</label>
+            <input id="password2" type="password" class="input" placeholder="Repeat password" autocomplete="new-password" required/>
+          </div>
+        </div>
+
+        <!-- Photo -->
+        <div>
+          <label class="block text-sm mb-1">Profile Photo</label>
+          <input id="photo" type="file" accept="image/*" class="input"/>
+          <p class="text-xs text-muted mt-1">Optional. JPG/PNG up to 5 MB.</p>
+        </div>
+
+        <!-- Contact & Locale -->
+        <div class="grid-2">
+          <div>
+            <label class="block text-sm mb-1">Phone</label>
+            <input id="phone" type="tel" class="input" placeholder="+1 555 555 5555"/>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Country</label>
+            <input id="country" type="text" class="input" placeholder="Country"/>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Languages (comma-separated)</label>
+            <input id="languages" type="text" class="input" placeholder="English, Arabic"/>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Gym / Organization</label>
+            <input id="org" type="text" class="input" placeholder="Your gym or company"/>
+          </div>
+        </div>
+
+        <!-- Trainer details -->
+        <div class="grid-2">
+          <div>
+            <label class="block text-sm mb-1">Years of Experience</label>
+            <input id="years" type="number" min="0" max="80" class="input" placeholder="e.g. 5"/>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Accepting New Clients</label>
+            <select id="accepting" class="input">
+              <option value="yes" selected>Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Specialties (comma-separated)</label>
+            <input id="specialties" type="text" class="input" placeholder="Hypertrophy, Fat loss, Powerlifting"/>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Certifications</label>
+            <input id="certs" type="text" class="input" placeholder="NASM CPT, CSCS"/>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm mb-1">Bio</label>
+          <textarea id="bio" rows="4" class="input" placeholder="Short introduction, coaching style, achievements…"></textarea>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <label class="block text-sm mb-1">Website / Instagram (optional)</label>
+            <input id="social" type="url" class="input" placeholder="https://instagram.com/yourhandle"/>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Trainer Invite Code (optional)</label>
+            <input id="trainerCode" type="text" class="input" placeholder="For linking clients later"/>
+          </div>
+        </div>
+
+        <button id="createBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
+          <i data-feather="user-plus" class="w-4 h-4"></i><span>Create Trainer Account</span>
+        </button>
+
+        <p class="text-sm text-center">
+          Already registered?
+          <a href="login.html" class="accent-text hover:underline">Log in</a>
+        </p>
+
+        <p id="status" class="text-sm mt-1 h-5"></p>
+      </form>
+    </section>
+
+    <p class="text-center text-xs text-muted mt-4">
+      By registering you agree to our Terms & Privacy Policy.
+    </p>
+  </main>
+
+  <script>
+    feather.replace();
+
+    // ---- Firebase init (your config) ----
+    const firebaseConfig = {
+      apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
+      authDomain: "ironpump-gym-tracker.firebaseapp.com",
+      projectId: "ironpump-gym-tracker",
+      storageBucket: "ironpump-gym-tracker.firebasestorage.app",
+      messagingSenderId: "267000647709",
+      appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
+      measurementId: "G-BG3TDDWXZH"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    // If already signed in, send to index
+    auth.onAuthStateChanged(u => { if(u) location.href = 'index.html'; });
+
+    // UI helpers
+    const statusEl = document.getElementById('status');
+    const createBtn = document.getElementById('createBtn');
+    function setLoading(b){
+      createBtn.disabled = b;
+      createBtn.style.opacity = b ? .7 : 1;
+      statusEl.textContent = b ? 'Creating trainer account…' : '';
+      statusEl.style.color = b ? 'var(--muted)' : '';
+    }
+    function showError(m){ statusEl.textContent = m; statusEl.style.color = '#ff6b6b'; }
+    function showSuccess(m){ statusEl.textContent = m; statusEl.style.color = 'var(--accent)'; }
+
+    // Toggle password visibility
+    document.getElementById('togglePw').addEventListener('click', () => {
+      const pw = document.getElementById('password');
+      const t = pw.type === 'password' ? 'text' : 'password';
+      pw.type = t;
+      const icon = t === 'password' ? 'eye' : 'eye-off';
+      document.querySelector('#togglePw i').setAttribute('data-feather', icon);
+      feather.replace();
+    });
+
+    // Submit
+    document.getElementById('signupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Read form
+      const fullName = document.getElementById('fullName').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const password2 = document.getElementById('password2').value;
+      const phone = document.getElementById('phone').value.trim();
+      const country = document.getElementById('country').value.trim();
+      const languages = document.getElementById('languages').value.trim();
+      const org = document.getElementById('org').value.trim();
+      const years = Number(document.getElementById('years').value || 0);
+      const accepting = document.getElementById('accepting').value === 'yes';
+      const specialties = document.getElementById('specialties').value.trim();
+      const certs = document.getElementById('certs').value.trim();
+      const bio = document.getElementById('bio').value.trim();
+      const social = document.getElementById('social').value.trim();
+      const trainerCode = document.getElementById('trainerCode').value.trim();
+      const photoFile = document.getElementById('photo').files[0];
+
+      // Validate
+      if(!fullName) return showError('Full name is required.');
+      if(!email) return showError('Email is required.');
+      if(!password) return showError('Password is required.');
+      if(password !== password2) return showError('Passwords do not match.');
+      if(password.length < 6) return showError('Password must be at least 6 characters.');
+
+      try{
+        setLoading(true);
+
+        // 1) Create auth user
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        const uid = cred.user.uid;
+
+        // 2) Upload photo (optional)
+        let photoURL = '';
+        if (photoFile) {
+          if (photoFile.size > 5 * 1024 * 1024) throw new Error('Image too large (max 5 MB).');
+          const ref = storage.ref().child(`users/${uid}/profile.jpg`);
+          await ref.put(photoFile);
+          photoURL = await ref.getDownloadURL();
+        }
+
+        // 3) Update auth profile
+        await cred.user.updateProfile({ displayName: fullName, photoURL: photoURL || null });
+
+        // 4) Save trainer in Firestore
+        await db.collection('users').doc(uid).set({
+          role: 'trainer',
+          email,
+          fullName,
+          phone,
+          country,
+          languages: languages ? languages.split(',').map(s=>s.trim()).filter(Boolean) : [],
+          organization: org,
+          yearsExperience: years,
+          acceptingNewClients: accepting,
+          specialties: specialties ? specialties.split(',').map(s=>s.trim()).filter(Boolean) : [],
+          certifications: certs ? certs.split(',').map(s=>s.trim()).filter(Boolean) : [],
+          bio,
+          social: social || '',
+          trainerCode: trainerCode || '',
+          photoURL,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        showSuccess('Trainer account created! Redirecting…');
+        setTimeout(()=> location.href = 'index.html', 800);
+
+      }catch(err){
+        console.error(err);
+        showError(prettyAuthError(err));
+        setLoading(false);
+      }
+    });
+
+    function prettyAuthError(err){
+      const code = err && err.code ? String(err.code) : '';
+      switch(code){
+        case 'auth/email-already-in-use': return 'Email is already registered.';
+        case 'auth/invalid-email': return 'Invalid email address.';
+        case 'auth/operation-not-allowed': return 'Email/password sign-in is disabled in Firebase Auth.';
+        case 'auth/weak-password': return 'Password is too weak.';
+        default: return err.message || 'Sign up failed.';
+      }
+    }
+  </script>
+</body>
+</html>

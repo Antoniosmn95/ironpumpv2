@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IronPump - Gym Log</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+  <!-- PDF libs for month export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    :root{
+      --accent:#97FB57;   /* neon green */
+      --bg:#121212;       /* near-black */
+      --muted:#909090;    /* gray */
+      --light:#F6F2F2;    /* off-white */
+    }
+
+    html,body{ height:100%; }
+    body{
+      font-family:'Inter',sans-serif;
+      background:var(--bg);
+      color:var(--light);
+    }
+
+    /* Panels & cards */
+    .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
+    .card { background:#171717; border:1px solid rgba(144,144,144,0.35); }
+    .card:hover{ background:#1d1d1d; }
+
+    /* Accent elements */
+    .accent-text{ color:var(--accent); }
+    .accent-chip{
+      background:rgba(151,251,87,0.12);
+      color:var(--accent);
+      border:1px solid rgba(151,251,87,0.45);
+    }
+    .btn-accent{
+      background:var(--accent);
+      color:var(--bg);
+      box-shadow:0 0 12px rgba(151,251,87,0.45), inset 0 0 0 1px rgba(18,18,18,0.4);
+      transition:filter .15s ease, transform .05s ease;
+    }
+    .btn-accent:hover{ filter:brightness(0.95); }
+    .btn-accent:active{ transform:translateY(1px); }
+    .btn-ghost{
+      background:#232323;
+      color:var(--light);
+      border:1px solid rgba(144,144,144,0.35);
+    }
+    .btn-ghost:hover{ background:#2a2a2a; }
+
+    /* Utility */
+    .text-muted{ color:var(--muted); }
+    .divider{ border-color:rgba(144,144,144,0.35); }
+
+    /* Calendar UI */
+    .cal-day{ border-radius:.5rem; cursor:default; }
+    .cal-day--muted{ color:#666; }
+    .cal-day--marked{
+      background: var(--accent);
+      color: var(--bg);
+      box-shadow: 0 0 10px rgba(151,251,87,.35);
+      font-weight: 600;
+    }
+    .cal-day--today{
+      outline:2px solid rgba(151,251,87,.6);
+      outline-offset:2px;
+    }
+    .cal-select{
+      background:#1e1e1e;
+      border:1px solid rgba(144,144,144,.35);
+      border-radius:.5rem;
+      padding:.35rem .6rem;
+    }
+    .cal-select:focus{ outline:2px solid var(--accent); }
+
+    /* Make anchor-wrapped cards look like blocks */
+    .link-card{ display:block; text-decoration:none; color:inherit; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="panel text-[var(--light)] p-4 shadow-md border-b divider">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold tracking-tight">
+        <span class="accent-text">Iron</span>Pump
+      </h1>
+
+      <div class="flex items-center gap-2">
+        <span id="programName" class="hidden text-sm text-muted"></span>
+        <button id="calendarBtn" class="p-2 rounded-full hover:bg-[#1f1f1f] transition" aria-label="Open Calendar">
+          <i data-feather="calendar" class="accent-text"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-grow container mx-auto p-4">
+    <div class="grid grid-cols-1 gap-4">
+      <!-- Day selector -->
+      <div class="panel p-6 rounded-xl shadow-md">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold">Select Your Workout Day</h2>
+          <span id="authHint" class="text-sm text-muted"></span>
+        </div>
+
+        <div id="dayGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Filled dynamically -->
+          <div id="loadingDays" class="col-span-full text-sm text-muted">Loading your plan…</div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="panel p-6 rounded-xl shadow-md">
+        <h2 class="text-xl font-semibold mb-4">Recent Activity</h2>
+        <div id="recentActivity" class="space-y-3">
+          <div class="flex items-center p-3 card rounded-lg" id="recentEmpty">
+            <div class="p-2 rounded-full mr-3 accent-chip">
+              <i data-feather="activity" class="accent-text"></i>
+            </div>
+            <div>
+              <p class="font-medium">No workouts completed yet</p>
+              <p class="text-sm text-muted">Start your first workout today!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Calendar Modal -->
+  <div id="calendarModal" class="fixed inset-0 bg-black/70 flex items-center justify-center hidden z-50">
+    <div class="panel rounded-xl p-6 w-full max-w-3xl mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold">Workout Calendar</h3>
+        <button id="closeCalendar" class="text-muted hover:text-[var(--light)]" aria-label="Close Calendar">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <button id="prevMonth" class="p-2 rounded-full btn-ghost" aria-label="Prev">
+          <i data-feather="chevron-left"></i>
+        </button>
+
+        <select id="monthSelect" class="cal-select" aria-label="Select month"></select>
+        <select id="yearSelect" class="cal-select" aria-label="Select year"></select>
+
+        <button id="nextMonth" class="p-2 rounded-full btn-ghost" aria-label="Next">
+          <i data-feather="chevron-right"></i>
+        </button>
+
+        <button id="todayBtn" class="ml-auto px-3 py-2 rounded-lg btn-ghost">Today</button>
+        <!-- Export month -->
+        <button id="exportMonthPDF" class="px-3 py-2 rounded-lg btn-accent">Export Month PDF</button>
+      </div>
+
+      <!-- Week Header -->
+      <div class="grid grid-cols-7 gap-1 mb-2 text-muted text-xs font-medium">
+        <div class="text-center py-1">Sun</div>
+        <div class="text-center py-1">Mon</div>
+        <div class="text-center py-1">Tue</div>
+        <div class="text-center py-1">Wed</div>
+        <div class="text-center py-1">Thu</div>
+        <div class="text-center py-1">Fri</div>
+        <div class="text-center py-1">Sat</div>
+      </div>
+
+      <!-- Days Grid -->
+      <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
+    </div>
+  </div>
+
+  <!-- Firebase init -->
+  <script type="module" src="firebase-init.js"></script>
+
+  <script type="module">
+    import {
+      getAuth, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+    import {
+      getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit
+    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+    feather.replace();
+
+    const auth = getAuth();
+    const db   = getFirestore();
+
+    // ---------- Helpers ----------
+    function deriveChip(label=''){
+      // Try to pull a short tag like "Upper", "Lower", etc.
+      if(!label) return '';
+      const parts = label.split('—').map(s=>s.trim());
+      if(parts.length>1) return parts[1];
+      const m = label.match(/\b(Upper|Lower|Push|Pull|Legs|Full)\b/i);
+      return m ? m[0] : '';
+    }
+
+    function summarizeExercises(day){
+      const names = (day?.exercises||[]).slice(0,3).map(e=>e.name).filter(Boolean);
+      if(!names.length) return 'No exercises yet';
+      const txt = names.join(', ');
+      return (day.exercises?.length||0) > 3 ? txt + ', …' : txt;
+    }
+
+    function buildDayCard(day, index){
+      const label = day?.label || `Day ${index}`;
+      const chip  = deriveChip(label);
+      const desc  = summarizeExercises(day);
+      const url   = `day.html?d=${index}`;
+
+      return `
+        <a href="${url}" class="link-card" aria-label="Open ${label}">
+          <div class="day-card card p-4 rounded-lg cursor-pointer transition">
+            <div class="flex justify-between items-center">
+              <h3 class="font-bold text-lg accent-text">${label}</h3>
+              ${chip ? `<span class="accent-chip px-2 py-1 rounded-full text-xs font-medium">${chip}</span>` : ''}
+            </div>
+            <p class="text-sm text-muted mt-2">${desc}</p>
+            <div class="flex justify-between items-center mt-4">
+              <div class="flex items-center gap-1">
+                <i data-feather="check-circle" class="w-4 h-4 accent-text"></i>
+                <span class="text-xs text-muted">Tap to start</span>
+              </div>
+              <span class="btn-accent px-3 py-1 rounded-lg text-sm">Start</span>
+            </div>
+          </div>
+        </a>
+      `;
+    }
+
+    // ---------- Program loader ----------
+    async function loadProgram(uid){
+      // programs/{uid}/assigned/active
+      const ref = doc(collection(doc(collection(db,'programs'), uid), 'assigned'), 'active');
+      const snap = await getDoc(ref);
+      return snap.exists() ? snap.data() : null; // {name, days:[...]}
+    }
+
+    function renderProgram(program){
+      const grid = document.getElementById('dayGrid');
+      const loading = document.getElementById('loadingDays');
+      const pName = document.getElementById('programName');
+
+      if(loading) loading.remove();
+
+      if(!program || !Array.isArray(program.days) || program.days.length === 0){
+        grid.innerHTML = `
+          <div class="card p-4 rounded-lg text-sm text-muted">
+            No active program found. Ask your trainer to assign one.
+          </div>`;
+        return;
+      }
+
+      if(program.name){
+        pName.textContent = `Program: ${program.name}`;
+        pName.classList.remove('hidden');
+      }
+
+      grid.innerHTML = program.days.map((d, i) => buildDayCard(d, i+1)).join('');
+      feather.replace();
+    }
+
+    // ---------- Recent activity ----------
+    function getLogsLS(){
+      try { return JSON.parse(localStorage.getItem('ironpump_logs') || '[]'); }
+      catch { return []; }
+    }
+    function getDayMapLS(){
+      try { return JSON.parse(localStorage.getItem('ironpump_daymap') || '{}'); }
+      catch { return {}; }
+    }
+
+    async function renderRecent(user){
+      const box = document.getElementById('recentActivity');
+      const empty = document.getElementById('recentEmpty');
+      let items = [];
+
+      if(user){
+        // Try Firestore first
+        try{
+          const q = query(
+            collection(doc(collection(db,'workout_logs'), user.uid), 'days'),
+            orderBy('savedAt','desc'),
+            limit(5)
+          );
+          const qs = await getDocs(q);
+          qs.forEach(docSnap => {
+            const d = docSnap.data();
+            if(d?.date) items.push({ date:d.date, label:d.dayLabel || 'Workout recorded' });
+          });
+        }catch(e){
+          console.warn('Recent FS error, fallback to localStorage', e);
+        }
+      }
+
+      if(items.length === 0){
+        // Fallback to localStorage
+        const map = getDayMapLS();
+        items = getLogsLS().slice().sort().reverse().slice(0,5).map(iso => ({
+          date: iso, label: map[iso] || 'Workout recorded'
+        }));
+      }
+
+      if(items.length){
+        if(empty) empty.remove();
+        box.innerHTML = items.map(it => `
+          <div class="flex items-center p-3 card rounded-lg">
+            <div class="p-2 rounded-full mr-3 accent-chip">
+              <i data-feather="calendar" class="accent-text"></i>
+            </div>
+            <div>
+              <p class="font-medium">${it.label}</p>
+              <p class="text-sm text-muted">${new Date(it.date).toLocaleDateString()}</p>
+            </div>
+          </div>
+        `).join('');
+        feather.replace();
+      }
+    }
+
+    // ---------- Auth boot ----------
+    onAuthStateChanged(auth, async (user) => {
+      const hint = document.getElementById('authHint');
+      if(!user){
+        hint.innerHTML = `You’re not signed in. <a href="login.html" class="underline">Log in</a> to load your program.`;
+        renderProgram(null);
+        renderRecent(null);
+        return;
+      }
+      hint.textContent = '';
+      const program = await loadProgram(user.uid);
+      renderProgram(program);
+      renderRecent(user);
+    });
+
+    // ================== Calendar (localStorage marks) ==================
+    const calendarBtn = document.getElementById('calendarBtn');
+    const calendarModal = document.getElementById('calendarModal');
+    const closeCalendar = document.getElementById('closeCalendar');
+    const monthSelect = document.getElementById('monthSelect');
+    const yearSelect  = document.getElementById('yearSelect');
+    const prevMonthBtn = document.getElementById('prevMonth');
+    const nextMonthBtn = document.getElementById('nextMonth');
+    const todayBtn     = document.getElementById('todayBtn');
+    const exportMonthBtn = document.getElementById('exportMonthPDF');
+    const calGrid      = document.getElementById('calendarGrid');
+
+    const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+    (function initSelectors(){
+      MONTHS.forEach((m,i)=> {
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = m; monthSelect.appendChild(opt);
+      });
+      const currentYear = new Date().getFullYear();
+      for(let y=currentYear-5; y<=currentYear+5; y++){
+        const opt = document.createElement('option');
+        opt.value = y; opt.textContent = y; yearSelect.appendChild(opt);
+      }
+    })();
+
+    const today = new Date();
+    let viewYear  = today.getFullYear();
+    let viewMonth = today.getMonth();
+
+    function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
+    function startWeekday(y,m){ return new Date(y, m, 1).getDay(); }
+
+    function getLogs(){ return new Set(getLogsLS()); }
+    function getDayMap(){ return getDayMapLS(); }
+
+    function renderCalendar(){
+      monthSelect.value = viewMonth;
+      yearSelect.value = viewYear;
+
+      const logs = getLogs();
+      const totalDays = daysInMonth(viewYear, viewMonth);
+      const startPad  = startWeekday(viewYear, viewMonth);
+
+      calGrid.innerHTML = '';
+
+      // Leading muted (prev month)
+      const prevMonth = (viewMonth - 1 + 12) % 12;
+      const prevYear  = viewMonth === 0 ? viewYear - 1 : viewYear;
+      const prevTotal = daysInMonth(prevYear, prevMonth);
+      for(let i=0; i<startPad; i++){
+        const d = document.createElement('div');
+        d.className = 'cal-day text-center py-2 cal-day--muted';
+        d.textContent = prevTotal - startPad + 1 + i;
+        calGrid.appendChild(d);
+      }
+
+      // Current month
+      for(let day=1; day<=totalDays; day++){
+        const cell = document.createElement('div');
+        cell.className = 'cal-day text-center py-2 hover:bg-[#1f1f1f]';
+        cell.textContent = day;
+
+        const iso = new Date(viewYear, viewMonth, day).toISOString().slice(0,10);
+        if(logs.has(iso)) cell.classList.add('cal-day--marked');
+
+        const isToday = (viewYear===today.getFullYear() && viewMonth===today.getMonth() && day===today.getDate());
+        if(isToday) cell.classList.add('cal-day--today');
+
+        calGrid.appendChild(cell);
+      }
+
+      // Trailing
+      const filled = startPad + totalDays;
+      const trailing = (7 - (filled % 7)) % 7;
+      for(let i=0; i<trailing; i++){
+        const d = document.createElement('div');
+        d.className = 'cal-day text-center py-2 cal-day--muted';
+        d.textContent = i+1;
+        calGrid.appendChild(d);
+      }
+    }
+
+    // Open/close calendar
+    calendarBtn.addEventListener('click', () => {
+      calendarModal.classList.remove('hidden');
+      renderCalendar();
+    });
+    closeCalendar.addEventListener('click', () => calendarModal.classList.add('hidden'));
+    calendarModal.addEventListener('click', (e) => { if(e.target === calendarModal) calendarModal.classList.add('hidden'); });
+
+    // Controls
+    prevMonthBtn.addEventListener('click', () => {
+      viewMonth--;
+      if(viewMonth < 0){ viewMonth = 11; viewYear--; }
+      renderCalendar();
+    });
+    nextMonthBtn.addEventListener('click', () => {
+      viewMonth++;
+      if(viewMonth > 11){ viewMonth = 0; viewYear++; }
+      renderCalendar();
+    });
+    todayBtn.addEventListener('click', () => {
+      viewYear = new Date().getFullYear();
+      viewMonth = new Date().getMonth();
+      renderCalendar();
+    });
+    monthSelect.addEventListener('change', (e) => { viewMonth = Number(e.target.value); renderCalendar(); });
+    yearSelect.addEventListener('change',  (e) => { viewYear  = Number(e.target.value);  renderCalendar(); });
+
+    // -------- Export Month PDF --------
+    exportMonthBtn.addEventListener('click', () => {
+      const logs = Array.from(getLogs());
+      const dayMap = getDayMap();
+
+      const monthStr = String(viewMonth+1).padStart(2,'0');
+      const rows = logs
+        .filter(iso => iso.startsWith(`${viewYear}-${monthStr}-`))
+        .sort()
+        .map(iso => {
+          const d = new Date(iso);
+          const disp = d.toLocaleDateString();
+          const dayLabel = dayMap[iso] || 'Workout recorded';
+          return [disp, dayLabel];
+        });
+
+      const total = rows.length;
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(18);
+      doc.text(`Workout Summary — ${MONTHS[viewMonth]} ${viewYear}`, 105, 15, null, null, 'center');
+
+      doc.setFontSize(12);
+      doc.text(`Sessions: ${total}`, 14, 25);
+
+      const tableHead = [['Date','Details']];
+      const tableBody = rows.length ? rows : [['—','No workouts recorded this month']];
+
+      doc.autoTable({
+        startY: 30,
+        head: tableHead,
+        body: tableBody,
+        theme: 'grid',
+        headStyles: { fillColor:[151,251,87], textColor:18 }
+      });
+
+      const fname = `ironpump-month-${viewYear}-${monthStr}.pdf`;
+      doc.save(fname);
+    });
+  </script>
+</body>
+</html>

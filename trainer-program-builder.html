@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Program Builder — IronPump</title>
+
+  <!-- Tailwind + Feather -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+
+  <!-- Firebase (compat to match your stack) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+
+  <!-- Auth guard (your existing file) -->
+  <script src="auth-guard.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    :root{
+      --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2;
+    }
+    html,body{height:100%}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
+    .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
+    .card{background:#171717;border:1px solid rgba(144,144,144,.35)}
+    .accent-text{color:var(--accent)}
+    .accent-chip{background:rgba(151,251,87,.12);color:var(--accent);border:1px solid rgba(151,251,87,.45)}
+    .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 0 12px rgba(151,251,87,.45), inset 0 0 0 1px rgba(18,18,18,.4)}
+    .btn-ghost{background:#232323;color:var(--light);border:1px solid rgba(144,144,144,.35)}
+    .btn-ghost:hover{background:#2a2a2a}
+    .text-muted{color:var(--muted)}
+    .divider{border-color:rgba(144,144,144,.35)}
+    .pill{border-radius:9999px;padding:.15rem .55rem;border:1px solid rgba(151,251,87,.35);background:rgba(151,251,87,.08);font-size:.72rem}
+    .tab{padding:.5rem .75rem;border-radius:.5rem;cursor:pointer}
+    .tab.active{background:rgba(151,251,87,.12);border:1px solid rgba(151,251,87,.35);color:var(--accent)}
+    .drag-handle{cursor:grab}
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="panel p-4">
+    <div class="container mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="trainer-dashboard.html" class="p-2 rounded-full hover:bg-[#1e1e1e]" title="Back to Trainer Dashboard"><i data-feather="arrow-left" class="accent-text"></i></a>
+        <h1 class="text-xl font-bold">Program <span class="accent-text">Builder</span></h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="btn-ghost px-3 py-2 rounded-lg" onclick="AuthGuard.signOut()"><i data-feather="log-out" class="inline mr-1"></i>Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="container mx-auto p-4">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <!-- Left: Categories & Exercises -->
+      <section class="panel rounded-xl p-4 lg:col-span-1">
+        <h2 class="font-semibold mb-3">Exercises</h2>
+
+        <div class="flex flex-wrap gap-2 mb-3" id="categoryTabs">
+          <!-- tabs injected -->
+        </div>
+
+        <div class="flex items-center gap-2 mb-3">
+          <input id="searchInput" class="card px-3 py-2 rounded-lg text-sm w-full" placeholder="Search exercise…">
+          <span class="pill" id="countBadge">0</span>
+        </div>
+
+        <div class="flex items-center gap-2 mb-3">
+          <input id="customExerciseInput" class="card px-3 py-2 rounded-lg text-sm w-full" placeholder="Add custom exercise…">
+          <button id="addCustomExerciseBtn" class="btn-accent px-3 py-2 rounded-lg text-sm">
+            <i data-feather="plus" class="inline mr-1"></i>Add
+          </button>
+        </div>
+
+        <div id="exerciseList" class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+          <!-- list injected -->
+        </div>
+      </section>
+
+      <!-- Right: Program Canvas -->
+      <section class="lg:col-span-2 space-y-4">
+        <!-- Template meta + actions -->
+        <div class="panel rounded-xl p-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm text-muted">Template Name</label>
+              <input id="templateName" class="card px-3 py-2 rounded-lg w-full" placeholder="e.g., 4-Day Upper/Lower">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="addDayBtn" class="btn-ghost px-3 py-2 rounded-lg"><i data-feather="plus" class="inline mr-1"></i>Add Day</button>
+              <button id="exportJsonBtn" class="btn-ghost px-3 py-2 rounded-lg"><i data-feather="download" class="inline mr-1"></i>Export JSON</button>
+            </div>
+          </div>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+            <button id="saveTemplateBtn" class="btn-accent px-3 py-2 rounded-lg"><i data-feather="save" class="inline mr-1"></i>Save Template</button>
+            <input id="assignEmail" class="card px-3 py-2 rounded-lg" placeholder="Assign to client (email)">
+            <button id="assignBtn" class="btn-ghost px-3 py-2 rounded-lg"><i data-feather="user-check" class="inline mr-1"></i>Assign to Client</button>
+          </div>
+          <div id="actionMsg" class="text-sm mt-2"></div>
+        </div>
+
+        <!-- Days canvas -->
+        <div id="daysWrap" class="grid grid-cols-1 gap-4">
+          <!-- day cards injected -->
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Edit Exercise Modal -->
+  <div id="editModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+    <div class="panel rounded-xl p-6 w-full max-w-md mx-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-semibold">Edit Exercise</h3>
+        <button id="closeEditModal" class="p-2 rounded hover:bg-[#2a2a2a]"><i data-feather="x"></i></button>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label class="text-sm text-muted">Exercise</label>
+          <input id="editName" class="card px-3 py-2 rounded-lg w-full" readonly>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="text-sm text-muted">Sets</label>
+            <input id="editSets" type="number" min="1" value="3" class="card px-3 py-2 rounded-lg w-full">
+          </div>
+          <div>
+            <label class="text-sm text-muted">Reps</label>
+            <input id="editReps" class="card px-3 py-2 rounded-lg w-full" placeholder="e.g., 10–15">
+          </div>
+          <div>
+            <label class="text-sm text-muted">Rest</label>
+            <input id="editRest" class="card px-3 py-2 rounded-lg w-full" placeholder="e.g., 60–90s">
+          </div>
+        </div>
+
+        <!-- NEW: Time & Tempo -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-sm text-muted">Time</label>
+            <input id="editTime" class="card px-3 py-2 rounded-lg w-full" placeholder="e.g., 45s or 1:00">
+          </div>
+          <div>
+            <label class="text-sm text-muted">Tempo</label>
+            <input id="editTempo" class="card px-3 py-2 rounded-lg w-full" placeholder="e.g., 3-1-2-0">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm text-muted">Notes</label>
+          <textarea id="editNotes" rows="2" class="card px-3 py-2 rounded-lg w-full" placeholder="Grip, cues, range…"></textarea>
+        </div>
+        <div class="flex items-center justify-end gap-2">
+          <button id="deleteRowBtn" class="btn-ghost px-3 py-2 rounded-lg"><i data-feather="trash-2" class="inline mr-1"></i>Remove</button>
+          <button id="saveRowBtn" class="btn-accent px-3 py-2 rounded-lg"><i data-feather="check" class="inline mr-1"></i>Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Init + guard
+    AuthGuard.init();
+    AuthGuard.requireRole('trainer');
+    const db = firebase.firestore();
+    let currentUser = null;
+    AuthGuard.onAuth(async (user)=>{ currentUser = user; });
+
+    feather.replace();
+
+    // ---------- Exercise Catalog ----------
+    const CATALOG = {
+      "Chest": [
+        "Barbell Bench Press","Incline Barbell Press","Decline Barbell Press","Dumbbell Flat Bench Press",
+        "Dumbbell Incline Press","Dumbbell Fly","Pec Deck Machine","Seated Chest Press Machine",
+        "Cable Crossover (High to Low)","Cable Crossover (Low to High)","Push-Ups","Decline Push-Ups",
+        "Diamond Push-Ups","Chest Dips","Smith Machine Bench Press","Squeeze Press",
+        "Stability Ball Dumbbell Fly","Iso-Lateral Chest Press","Cable Chest Fly (Standing)","Resistance Band Press"
+      ],
+      "Back": [
+        "Pull-Ups","Chin-Ups","Lat Pulldown (Wide Grip)","Reverse-Grip Pulldown","Seated Row Machine","T-Bar Row",
+        "One-Arm Dumbbell Row","Bent-Over Barbell Row","Pendlay Row","Rack Pull","Barbell Deadlift","Dumbbell Pullover",
+        "Cable Row (Seated)","Straight-Arm Pulldown","Rope Face Pull","Inverted Row","Resistance Band Row","TRX Row",
+        "Renegade Row","Stability Ball Dumbbell Row"
+      ],
+      "Shoulders": [
+        "Dumbbell Shoulder Press","Barbell Overhead Press","Arnold Press","Lateral Raise","Front Raise","Reverse Fly","Upright Row",
+        "Dumbbell Shrug","Barbell Shrug","Smith Machine Overhead Press","Cable Lateral Raise","Cable Rear Delt Fly","Shoulder Press Machine",
+        "Pike Push-Up","Handstand Push-Up","Landmine Press","TRX Y Raise","Face Pull","Plate Press","Scaption Raise"
+      ],
+      "Arms — Biceps": [
+        "Barbell Curl","Dumbbell Alternating Curl","Hammer Curl","Concentration Curl","Cable Curl","Rope Curl","Incline Dumbbell Curl",
+        "EZ-Bar Curl","Preacher Curl Machine","Reverse Curl","Zottman Curl","Cross-Body Hammer Curl","Resistance Band Curl",
+        "Barbell Drag Curl","Dumbbell 21s"
+      ],
+      "Arms — Triceps": [
+        "Skull Crusher","Overhead Dumbbell Extension","Cable Rope Pushdown","One-Arm Cable Pushdown","Close-Grip Bench Press","Triceps Dips",
+        "Machine Triceps Press","Dumbbell Kickback","Diamond Push-Up","Reverse-Grip Pushdown","Bodyweight Triceps Extension",
+        "Resistance Band Pushdown","TRX Triceps Press","Cable Overhead Triceps Extension"
+      ],
+      "Legs": [
+        "Barbell Back Squat","Front Squat","Hack Squat","Leg Press","Smith Machine Squat","Goblet Squat","Walking Lunge","Dumbbell Lunge",
+        "Bulgarian Split Squat","Step-Up","Romanian Deadlift","Sumo Deadlift","Leg Extension","Lying Leg Curl","Seated Leg Curl",
+        "Box Jump","Air Squat","Jump Squat","Wall Sit","Pistol Squat","Resistance Band Squat",
+        "Stability Ball Leg Curl","Kettlebell Swing","Banded Side Step","Single-Leg Deadlift","Weighted Step-Up",
+        "Reverse Lunge","Sled Push","Sled Pull","Walking Step-Over (Functional Box)"
+      ],
+      "Glutes": [
+        "Barbell Hip Thrust","Dumbbell Hip Thrust","Glute Bridge","Single-Leg Glute Bridge","Cable Glute Kickback",
+        "Resistance Band Kickback","Seated Hip Abduction Machine","Standing Hip Abduction Machine","Frog Pump","Donkey Kick","Fire Hydrant",
+        "Kettlebell Deadlift","Glute Drive Machine","Banded Monster Walk","Stability Ball Hip Bridge","Step-Up (Glute Focus)",
+        "Reverse Lunge to Knee Drive","Cable Pull-Through","Sled Push (Glute Focus)","Walking Hip Thrust (Bands)"
+      ],
+      "Core": [
+        "Sit-Up","Crunch","Hanging Leg Raise","Decline Sit-Up","Cable Crunch","Ab Coaster Machine","Reverse Crunch","Flutter Kick",
+        "Bicycle Crunch","Plank","Side Plank","Weighted Plank","Jackknife Sit-Up","Hanging Knee Raise","Mountain Climber",
+        "Russian Twist","Medicine Ball Twist","Dumbbell Side Bend","Cable Woodchopper","Pallof Press","Stability Ball Rollout",
+        "L-Sit Hold","Standing Cable Twist","Weighted Sit-Up","Resistance Band Crunch"
+      ],
+      "Conditioning": [
+        "Treadmill Sprint","Incline Walk (Treadmill)","Rowing Machine","Assault Bike","Stair Climber","Elliptical","Jump Rope",
+        "Jump Rope Double-Under","Burpee","Skater Hop","Jumping Lunge","High Knees","Bear Crawl","Agility Ladder Drill",
+        "Shuttle Sprint","Box Jump","Battle Rope Slam","Kettlebell Clean & Press","Sled Sprint","Medicine Ball Slam",
+        "Tire Flip","Sandbag Clean","Farmer’s Walk","Sprint + Backpedal Drill","Step-Up Run"
+      ],
+      "Optional Full-Body": [
+        "Kettlebell Snatch","Turkish Get-Up","Thruster (Barbell or Dumbbell)","Clean and Press","Push Press","Deadlift to Row",
+        "Renegade Row + Push-Up Combo","Sled Push + Pull Superset","Medicine Ball Slam + Jump Combo","Farmer’s Carry to Lunge"
+      ]
+    };
+
+    // ---------- UI: Categories / Search ----------
+    const categoryTabs = document.getElementById('categoryTabs');
+    const exerciseList = document.getElementById('exerciseList');
+    const searchInput  = document.getElementById('searchInput');
+    const countBadge   = document.getElementById('countBadge');
+
+    const CATS = Object.keys(CATALOG);
+    let activeCat = CATS[0];
+    function renderTabs(){
+      categoryTabs.innerHTML = CATS.map(cat =>
+        `<button class="tab ${cat===activeCat?'active':''}" data-cat="${cat}">${cat}</button>`
+      ).join('');
+    }
+    function renderExercises(){
+      const q = (searchInput.value||'').toLowerCase();
+      const items = CATALOG[activeCat].filter(n => n.toLowerCase().includes(q));
+      countBadge.textContent = items.length;
+      exerciseList.innerHTML = items.map(name => `
+        <div class="card rounded-lg p-3 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="pill">${activeCat}</span>
+            <div>${name}</div>
+          </div>
+          <button class="btn-accent px-3 py-1 rounded-lg text-sm" onclick='addToDay("${escapeHtml(name)}")'>
+            <i data-feather="plus" class="inline mr-1"></i>Add
+          </button>
+        </div>
+      `).join('');
+      feather.replace();
+    }
+    categoryTabs.addEventListener('click', e=>{
+      const b = e.target.closest('[data-cat]'); if(!b) return;
+      activeCat = b.dataset.cat; renderTabs(); renderExercises();
+    });
+    searchInput.addEventListener('input', renderExercises);
+    renderTabs(); renderExercises();
+
+    // Add custom exercise
+    const customExerciseInput = document.getElementById('customExerciseInput');
+    const addCustomExerciseBtn = document.getElementById('addCustomExerciseBtn');
+    addCustomExerciseBtn.addEventListener('click', () => {
+      const customExercise = customExerciseInput.value.trim();
+      if (!customExercise) return alert('Please enter an exercise name.');
+      if (!CATALOG[activeCat]) CATALOG[activeCat] = [];
+      CATALOG[activeCat].push(customExercise);
+      customExerciseInput.value = '';
+      renderExercises();
+    });
+
+    // ---------- Program model ----------
+    let program = {
+      name: "",
+      days: [
+        { label: "Day 1", exercises: [] },
+        { label: "Day 2", exercises: [] },
+        { label: "Day 3", exercises: [] },
+        { label: "Day 4", exercises: [] },
+      ]
+    };
+
+    const daysWrap = document.getElementById('daysWrap');
+    const templateName = document.getElementById('templateName');
+    templateName.addEventListener('input', ()=> program.name = templateName.value.trim());
+
+    function addToDay(exName, dayIdx=0){
+      if(program.days.length === 0){ addDay(); }
+      const d = program.days[Math.min(dayIdx, program.days.length-1)];
+      d.exercises.push({
+        name: exName,
+        sets: 3,
+        reps: "10–15",
+        rest: "60–90s",
+        time: "",       // NEW
+        tempo: "",      // NEW
+        notes: ""
+      });
+      renderDays();
+    }
+
+    function addDay(){
+      const idx = program.days.length + 1;
+      program.days.push({ label: `Day ${idx}`, exercises: [] });
+      renderDays();
+    }
+    document.getElementById('addDayBtn').addEventListener('click', addDay);
+
+    function moveDay(idx, dir){
+      const n = idx + dir;
+      if(n<0 || n>=program.days.length) return;
+      [program.days[idx], program.days[n]] = [program.days[n], program.days[idx]];
+      renderDays();
+    }
+    function removeDay(idx){
+      if(!confirm('Remove this day?')) return;
+      program.days.splice(idx,1);
+      renderDays();
+    }
+
+    function moveRow(dayIdx, rowIdx, dir){
+      const arr = program.days[dayIdx].exercises;
+      const n = rowIdx + dir;
+      if(n<0 || n>=arr.length) return;
+      [arr[rowIdx], arr[n]] = [arr[n], arr[rowIdx]];
+      renderDays();
+    }
+
+    // Quick set helpers for Time/Tempo
+    function setTime(dayIdx, rowIdx){
+      const cur = program.days[dayIdx].exercises[rowIdx].time || '';
+      const v = prompt('Enter Time (e.g., 45s or 1:00):', cur);
+      if(v===null) return;
+      program.days[dayIdx].exercises[rowIdx].time = v.trim();
+      renderDays();
+    }
+    function clearTime(dayIdx, rowIdx){
+      program.days[dayIdx].exercises[rowIdx].time = '';
+      renderDays();
+    }
+    function setTempo(dayIdx, rowIdx){
+      const cur = program.days[dayIdx].exercises[rowIdx].tempo || '';
+      const v = prompt('Enter Tempo (e.g., 3-1-2-0):', cur);
+      if(v===null) return;
+      program.days[dayIdx].exercises[rowIdx].tempo = v.trim();
+      renderDays();
+    }
+    function clearTempo(dayIdx, rowIdx){
+      program.days[dayIdx].exercises[rowIdx].tempo = '';
+      renderDays();
+    }
+
+    // Edit modal state
+    let editing = { dayIdx:null, rowIdx:null };
+    const editModal = document.getElementById('editModal');
+    const editName  = document.getElementById('editName');
+    const editSets  = document.getElementById('editSets');
+    const editReps  = document.getElementById('editReps');
+    const editRest  = document.getElementById('editRest');
+    const editTime  = document.getElementById('editTime');   // NEW
+    const editTempo = document.getElementById('editTempo');  // NEW
+    const editNotes = document.getElementById('editNotes');
+
+    function openEdit(dayIdx, rowIdx){
+      editing = { dayIdx, rowIdx };
+      const row = program.days[dayIdx].exercises[rowIdx];
+      editName.value  = row.name;
+      editSets.value  = row.sets;
+      editReps.value  = row.reps;
+      editRest.value  = row.rest || '';
+      editTime.value  = row.time || '';
+      editTempo.value = row.tempo || '';
+      editNotes.value = row.notes || '';
+      editModal.classList.remove('hidden'); editModal.classList.add('flex');
+      feather.replace();
+    }
+    document.getElementById('closeEditModal').onclick = ()=> editModal.classList.add('hidden');
+    document.getElementById('saveRowBtn').onclick = ()=>{
+      const { dayIdx, rowIdx } = editing;
+      const row = program.days[dayIdx].exercises[rowIdx];
+      row.sets = Number(editSets.value||3);
+      row.reps = editReps.value||'';
+      row.rest = editRest.value||'';
+      row.time = editTime.value||'';      // NEW
+      row.tempo= editTempo.value||'';     // NEW
+      row.notes= editNotes.value||'';
+      editModal.classList.add('hidden');
+      renderDays();
+    };
+    document.getElementById('deleteRowBtn').onclick = ()=>{
+      const { dayIdx, rowIdx } = editing;
+      program.days[dayIdx].exercises.splice(rowIdx,1);
+      editModal.classList.add('hidden');
+      renderDays();
+    };
+    editModal.addEventListener('click', e=>{ if(e.target===editModal) editModal.classList.add('hidden'); });
+
+    function renderDays(){
+      daysWrap.innerHTML = program.days.map((d, i)=> `
+        <div class="panel rounded-xl p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <input class="card px-2 py-1 rounded-lg font-semibold w-40" value="${escapeHtml(d.label)}"
+                     oninput="program.days[${i}].label=this.value">
+              <span class="pill">${d.exercises.length} exercise(s)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="btn-ghost px-2 py-1 rounded-lg" onclick="moveDay(${i},-1)" title="Move up"><i data-feather="arrow-up"></i></button>
+              <button class="btn-ghost px-2 py-1 rounded-lg" onclick="moveDay(${i},1)"  title="Move down"><i data-feather="arrow-down"></i></button>
+              <button class="btn-ghost px-2 py-1 rounded-lg" onclick="removeDay(${i})"  title="Remove day"><i data-feather="trash-2"></i></button>
+            </div>
+          </div>
+
+          <div class="space-y-2" id="day-${i}">
+            ${
+              d.exercises.length
+              ? d.exercises.map((ex, r)=> `
+                <div class="card rounded-lg p-3">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="drag-handle pill" title="Reorder"><i data-feather="menu"></i></span>
+                      <div class="font-medium">${escapeHtml(ex.name)}</div>
+                      <span class="pill">Sets: ${ex.sets}</span>
+                      <span class="pill">Reps: ${escapeHtml(ex.reps)}</span>
+                      ${ex.rest?`<span class="pill">Rest: ${escapeHtml(ex.rest)}</span>`:''}
+                      ${ex.time?`<span class="pill">Time: ${escapeHtml(ex.time)}</span>`:''}
+                      ${ex.tempo?`<span class="pill">Tempo: ${escapeHtml(ex.tempo)}</span>`:''}
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <!-- Quick Add/Edit for Time & Tempo -->
+                      ${
+                        ex.time
+                          ? `<button class="btn-ghost px-2 py-1 rounded-lg" title="Edit Time" onclick="setTime(${i},${r})"><i data-feather="clock"></i></button>
+                             <button class="btn-ghost px-2 py-1 rounded-lg" title="Clear Time" onclick="clearTime(${i},${r})"><i data-feather="x-circle"></i></button>`
+                          : `<button class="btn-ghost px-2 py-1 rounded-lg" title="Add Time" onclick="setTime(${i},${r})"><i data-feather="plus-circle"></i> Time</button>`
+                      }
+                      ${
+                        ex.tempo
+                          ? `<button class="btn-ghost px-2 py-1 rounded-lg" title="Edit Tempo" onclick="setTempo(${i},${r})"><i data-feather="activity"></i></button>
+                             <button class="btn-ghost px-2 py-1 rounded-lg" title="Clear Tempo" onclick="clearTempo(${i},${r})"><i data-feather="x-circle"></i></button>`
+                          : `<button class="btn-ghost px-2 py-1 rounded-lg" title="Add Tempo" onclick="setTempo(${i},${r})"><i data-feather="plus-circle"></i> Tempo</button>`
+                      }
+
+                      <button class="btn-ghost px-2 py-1 rounded-lg" onclick="moveRow(${i},${r},-1)" title="Up"><i data-feather="arrow-up"></i></button>
+                      <button class="btn-ghost px-2 py-1 rounded-lg" onclick="moveRow(${i},${r},1)"  title="Down"><i data-feather="arrow-down"></i></button>
+                      <button class="btn-accent px-2 py-1 rounded-lg" onclick="openEdit(${i},${r})" title="Edit"><i data-feather="edit-2"></i></button>
+                    </div>
+                  </div>
+                  ${ex.notes ? `<div class="mt-2 text-sm text-muted">Notes: ${escapeHtml(ex.notes)}</div>`:''}
+                </div>
+              `).join('')
+              : `<div class="text-sm text-muted">No exercises yet. Use the list on the left to add.</div>`
+            }
+          </div>
+        </div>
+      `).join('');
+      feather.replace();
+    }
+    // expose helpers
+    window.addToDay = addToDay;
+    window.moveDay = moveDay;
+    window.removeDay = removeDay;
+    window.moveRow = moveRow;
+    window.openEdit = openEdit;
+    window.setTime = setTime;
+    window.clearTime = clearTime;
+    window.setTempo = setTempo;
+    window.clearTempo = clearTempo;
+
+    renderDays();
+
+    // ---------- Save / Assign / Export ----------
+    const actionMsg = document.getElementById('actionMsg');
+    function setMsg(msg, ok=true){
+      actionMsg.className = 'text-sm mt-2 ' + (ok?'text-green-400':'text-red-400');
+      actionMsg.textContent = msg;
+    }
+
+    document.getElementById('saveTemplateBtn').addEventListener('click', async ()=>{
+      try{
+        if(!currentUser) throw new Error('Not signed in');
+        if(!(program.name||'').trim()){
+          program.name = templateName.value.trim();
+        }
+        if(!program.name) return setMsg('Please enter a template name.', false);
+
+        const payload = {
+          name: program.name,
+          days: program.days,
+          trainerId: currentUser.uid,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        const ref = await db.collection('program_templates').doc(currentUser.uid)
+          .collection('items').add(payload);
+
+        setMsg('Template saved ✔️');
+        console.log('Saved template id:', ref.id);
+      }catch(e){
+        console.error(e); setMsg('Failed to save template: '+e.message, false);
+      }
+    });
+
+    const assignEmail = document.getElementById('assignEmail');
+    document.getElementById('assignBtn').addEventListener('click', async ()=>{
+      try{
+        if(!currentUser) throw new Error('Not signed in');
+        const email = (assignEmail.value||'').trim().toLowerCase();
+        if(!email) return setMsg('Enter a client email to assign.', false);
+
+        // resolve client uid
+        const qs = await db.collection('users').where('email','==',email).limit(1).get();
+        if(qs.empty) return setMsg('No user with that email.', false);
+        const clientUid = qs.docs[0].id;
+
+        const toAssign = {
+          name: program.name || templateName.value.trim() || 'Program',
+          days: program.days,
+          assignedBy: currentUser.uid,
+          assignedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        await db.collection('programs').doc(clientUid).collection('assigned').doc('active').set(toAssign);
+        setMsg('Program assigned to client ✔️');
+      }catch(e){
+        console.error(e); setMsg('Failed to assign: '+e.message, false);
+      }
+    });
+
+    document.getElementById('exportJsonBtn').addEventListener('click', ()=>{
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(program, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr; a.download = (program.name||'program') + '.json';
+      a.click();
+    });
+
+    // ---------- Helpers ----------
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+    }
+  </script>
+</body>
+</html>
