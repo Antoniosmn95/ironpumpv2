@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login — IronPump</title>
 
+  <!-- Favicon (Google Drive converted link) -->
+  <link rel="icon" type="image/png" href="https://drive.google.com/uc?export=view&id=1q5by_sN9-axiBb3XCNZjhd5gy0enrmug" />
+
   <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
@@ -43,10 +46,13 @@
 <body class="min-h-screen flex items-center justify-center p-4">
   <main class="w-full max-w-md">
     <!-- Header / Logo -->
-    <div class="text-center mb-6">
+    <div class="text-center mb-2 flex items-center justify-center gap-2">
+      <img src="https://drive.google.com/uc?export=view&id=1q5by_sN9-axiBb3XCNZjhd5gy0enrmug"
+           alt="IronPump Logo"
+           class="w-10 h-10 object-contain" />
       <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
-      <p class="text-sm text-muted mt-1">Choose your role and log in to your account.</p>
     </div>
+    <p class="text-sm text-muted text-center mb-6">Choose your role and log in to your account.</p>
 
     <!-- Card -->
     <section class="panel rounded-2xl p-6">
@@ -84,7 +90,7 @@
             <input id="remember" type="checkbox" class="accent-[var(--accent)]">
             <span>Remember me</span>
           </label>
-          <a href="signup.html" class="text-sm accent-text hover:underline">Create client account</a>
+          <a href="signup.html" class="text-sm accent-text hover:underline">Are you a client? Register here</a>
         </div>
 
         <button id="loginBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
@@ -159,7 +165,6 @@
         } else if (data.role) {
           roles = [String(data.role).toLowerCase()];
         }
-        // De-dup + sanity
         roles = Array.from(new Set(roles.filter(r => r === 'client' || r === 'trainer')));
         return { roles, raw: data };
       } catch (err) {
