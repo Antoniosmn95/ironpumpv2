@@ -5,15 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login — IronPump</title>
 
-  <!-- UI libs -->
+  <!-- Tailwind + Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase -->
-  <script type="module" src="firebase-init.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+  <!-- Your modular Firebase init (v12) -->
+  <script type="module" src="./firebase-init.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -28,7 +25,6 @@
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
-
     /* Segmented role switch */
     .seg { display:flex; background:#1b1b1b; border:1px solid rgba(144,144,144,.35); border-radius:9999px; padding:4px; gap:4px; }
     .seg button { flex:1; padding:.5rem .75rem; border-radius:9999px; font-weight:600; color:var(--light); background:transparent; border:none; cursor:pointer; }
@@ -79,7 +75,7 @@
             <input id="remember" type="checkbox" class="accent-[var(--accent)]">
             <span>Remember me</span>
           </label>
-          <!-- Dynamic register links -->
+          <!-- Conditional register links -->
           <a href="signup.html" id="registerClient" class="text-sm accent-text hover:underline">Are you a client? Register here</a>
           <a href="signup-trainer.html" id="registerTrainer" class="text-sm accent-text hover:underline hidden">Are you a trainer? Register here</a>
         </div>
@@ -98,24 +94,22 @@
     </p>
   </main>
 
-  <script>
+  <!-- App logic (modular Firebase v12) -->
+  <script type="module">
     feather.replace();
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
-      authDomain: "ironpump-gym-tracker.firebaseapp.com",
-      projectId: "ironpump-gym-tracker",
-      storageBucket: "ironpump-gym-tracker.firebasestorage.app",
-      messagingSenderId: "267000647709",
-      appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
-      measurementId: "G-BG3TDDWXZH"
-    };
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    import { auth, db } from './firebase-init.js';
+    import {
+      setPersistence,
+      browserLocalPersistence,
+      browserSessionPersistence,
+      onAuthStateChanged,
+      signInWithEmailAndPassword,
+      sendPasswordResetEmail,
+    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
-    const auth = firebase.auth();
-    const db   = firebase.firestore();
-
-    // Role UI logic
+    // ---------- Role UI ----------
     let chosenRole = sessionStorage.getItem('ironpump_chosenRole') || 'client';
     const roleClientBtn = document.getElementById('roleClient');
     const roleTrainerBtn = document.getElementById('roleTrainer');
@@ -127,38 +121,38 @@
       const isClient = chosenRole === 'client';
       roleClientBtn.classList.toggle('active', isClient);
       roleTrainerBtn.classList.toggle('active', !isClient);
+      roleClientBtn.setAttribute('aria-selected', String(isClient));
+      roleTrainerBtn.setAttribute('aria-selected', String(!isClient));
       roleHint.innerHTML = `You’re logging in as <span class="accent-text font-semibold">${isClient ? 'Client' : 'Trainer'}</span>.`;
       regClient.classList.toggle('hidden', !isClient);
       regTrainer.classList.toggle('hidden', isClient);
     }
-    roleClientBtn.addEventListener('click', () => {
-      chosenRole = 'client';
-      sessionStorage.setItem('ironpump_chosenRole', chosenRole);
-      renderRoleUI();
-    });
-    roleTrainerBtn.addEventListener('click', () => {
-      chosenRole = 'trainer';
-      sessionStorage.setItem('ironpump_chosenRole', chosenRole);
-      renderRoleUI();
-    });
+    roleClientBtn.addEventListener('click', () => { chosenRole = 'client'; sessionStorage.setItem('ironpump_chosenRole', chosenRole); renderRoleUI(); });
+    roleTrainerBtn.addEventListener('click', () => { chosenRole = 'trainer'; sessionStorage.setItem('ironpump_chosenRole', chosenRole); renderRoleUI(); });
     renderRoleUI();
 
+    // ---------- Role helpers ----------
     const DEBUG = true;
 
     async function fetchUserRoles(uid) {
       try {
-        const snap = await db.collection('users').doc(uid).get();
-        if (!snap.exists) return { roles: [], raw: null };
+        const snap = await getDoc(doc(db, 'users', uid));
+        if (!snap.exists()) return { roles: [], raw: null };
         const data = snap.data() || {};
-        let roles = [];
-        if (Array.isArray(data.roles)) roles = data.roles.map(r => r.toLowerCase());
-        else if (data.role) roles = [data.role.toLowerCase()];
-        return { roles };
-      } catch (e) { console.error(e); return { roles: [] }; }
+        let roles = Array.isArray(data.roles)
+          ? data.roles.map(r => String(r || '').toLowerCase())
+          : data.role ? [String(data.role).toLowerCase()] : [];
+        roles = Array.from(new Set(roles.filter(r => r === 'client' || r === 'trainer')));
+        if (DEBUG) console.log('[login] fetchUserRoles', { uid, roles, data });
+        return { roles, raw: data };
+      } catch (e) {
+        console.error('[login] fetchUserRoles error:', e);
+        return { roles: [], raw: null };
+      }
     }
 
     function userHasRole(roles, role) {
-      if (!roles || !roles.length) return role === 'client';
+      if (!roles || roles.length === 0) return role === 'client'; // legacy default
       return roles.includes(role);
     }
 
@@ -170,55 +164,75 @@
     async function routeAfterLogin(uid) {
       const { roles } = await fetchUserRoles(uid);
       if (userHasRole(roles, chosenRole)) {
+        if (DEBUG) console.log('[login] routing as', chosenRole);
         location.replace(routeFor(chosenRole));
       } else {
-        document.getElementById('status').textContent = `You don't have ${chosenRole} access.`;
+        showError(`You don't have ${chosenRole} access.`);
       }
     }
 
-    // Auth
-    auth.onAuthStateChanged(async (u) => {
-      if (u) await routeAfterLogin(u.uid);
-    });
-
+    // ---------- UI helpers ----------
     const emailEl = document.getElementById('email');
     const pwEl = document.getElementById('password');
     const rememberEl = document.getElementById('remember');
     const statusEl = document.getElementById('status');
     const loginBtn = document.getElementById('loginBtn');
 
+    function setLoading(isLoading){
+      loginBtn.disabled = isLoading;
+      loginBtn.style.opacity = isLoading ? 0.7 : 1;
+      statusEl.textContent = isLoading ? 'Signing in…' : '';
+      statusEl.style.color = isLoading ? 'var(--muted)' : '';
+    }
+    function showError(msg){ statusEl.textContent = msg; statusEl.style.color = '#ff6b6b'; }
+    function showSuccess(msg){ statusEl.textContent = msg; statusEl.style.color = 'var(--accent)'; }
+
+    // Toggle password visibility
     document.getElementById('togglePw').addEventListener('click', () => {
       const t = pwEl.type === 'password' ? 'text' : 'password';
       pwEl.type = t;
-      document.querySelector('#togglePw i').setAttribute('data-feather', t === 'password' ? 'eye' : 'eye-off');
+      const icon = t === 'password' ? 'eye' : 'eye-off';
+      document.querySelector('#togglePw i').setAttribute('data-feather', icon);
       feather.replace();
     });
 
+    // Forgot password
     document.getElementById('forgotBtn').addEventListener('click', async () => {
-      const email = emailEl.value.trim();
-      if (!email) return statusEl.textContent = 'Enter your email first.';
-      try {
-        await auth.sendPasswordResetEmail(email);
-        statusEl.textContent = 'Password reset email sent.';
-        statusEl.style.color = 'var(--accent)';
-      } catch (e) { statusEl.textContent = e.message; }
+      const email = (emailEl.value || '').trim();
+      if (!email) { showError('Enter your email first.'); return; }
+      try{
+        await sendPasswordResetEmail(auth, email);
+        showSuccess('Password reset email sent.');
+      }catch(err){
+        showError(err.message || 'Error sending reset email.');
+      }
     });
 
+    // Auth state
+    onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        if (DEBUG) console.log('[login] onAuthStateChanged:', u.uid);
+        await routeAfterLogin(u.uid);
+      }
+    });
+
+    // Login submit
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = emailEl.value.trim();
-      const pass = pwEl.value;
-      if (!email || !pass) return statusEl.textContent = 'Please fill in email and password.';
-      try {
-        loginBtn.disabled = true;
-        await auth.setPersistence(rememberEl.checked ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
-        const { user } = await auth.signInWithEmailAndPassword(email, pass);
+      const email = (emailEl.value || '').trim();
+      const pass  = pwEl.value || '';
+
+      if (!email || !pass) { showError('Please fill in email and password.'); return; }
+
+      try{
+        setLoading(true);
+        await setPersistence(auth, rememberEl.checked ? browserLocalPersistence : browserSessionPersistence);
+        const { user } = await signInWithEmailAndPassword(auth, email, pass);
         await routeAfterLogin(user.uid);
-      } catch (err) {
-        statusEl.textContent = err.message;
-        statusEl.style.color = '#ff6b6b';
+      }catch(err){
+        showError(err.message || 'Authentication error.');
       } finally {
-        loginBtn.disabled = false;
+        setLoading(false);
       }
     });
   </script>
