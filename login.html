@@ -11,45 +11,6 @@
    <!-- Firebase + Auth Guard -->
    <script type="module" src="firebase-init.js"></script>
 
-  <!-- Redirection -->
-  <script type="module">
-  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
-  import "./firebase-init.js";
-
-  const auth = getAuth();
-  const db   = getFirestore();
-
-  async function routeAfterLogin(uid){
-    try{
-      const snap = await getDoc(doc(db, "users", uid));
-      const role = snap.exists() ? (snap.data().role || "client") : "client";
-      if (role === "trainer") {
-        location.href = "trainer-dashboard.html";
-      } else {
-        location.href = "index.html";
-      }
-    }catch(e){
-      // fallback
-      location.href = "index.html";
-    }
-  }
-
-  // after successful sign in
-  document.getElementById("loginForm").addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    const email = e.target.email.value.trim();
-    const pass  = e.target.password.value;
-    const { user } = await signInWithEmailAndPassword(auth, email, pass);
-    routeAfterLogin(user.uid);
-  });
-
-  // also auto-route if the user is already logged in and opens login.html
-  onAuthStateChanged(auth, (user)=>{
-    if(user) routeAfterLogin(user.uid);
-  });
-</script>
-
   <!-- Firebase compat SDKs (best for plain HTML on GitHub Pages) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>

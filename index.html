@@ -11,27 +11,6 @@
    <!-- Firebase + Auth Guard -->
    <script type="module" src="firebase-init.js"></script>
    <script type="module" src="auth-guard.js"></script>
-
-  <!-- Keep trainers away from the client homepage -->
-  <script type="module">
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
-  import "./firebase-init.js";
-
-  const auth = getAuth();
-  const db   = getFirestore();
-
-  onAuthStateChanged(auth, async (user)=>{
-    if(!user) return; // guests can see the “not signed in” hint
-    try{
-      const snap = await getDoc(doc(db, "users", user.uid));
-      const role = snap.exists() ? (snap.data().role || "client") : "client";
-      if (role === "trainer") {
-        location.replace("trainer-dashboard.html");
-      }
-    }catch(_){}
-  });
-</script>
    
   <!-- PDF libs for month export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

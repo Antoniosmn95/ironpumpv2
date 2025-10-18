@@ -13,7 +13,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase compat (to match your other pages) -->
+  <!-- Firebase compat (same versions you’ve been using) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
@@ -21,7 +21,12 @@
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
+    :root{
+      --accent:#97FB57;   /* neon green */
+      --bg:#121212;       /* near-black */
+      --muted:#909090;    /* gray */
+      --light:#F6F2F2;    /* off-white */
+    }
     html,body{height:100%}
     body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
     .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
@@ -36,7 +41,9 @@
     .text-muted{color:var(--muted)}
     .divider{border-color:rgba(144,144,144,.35)}
     .pill{border-radius:9999px;padding:.25rem .6rem;border:1px solid rgba(151,251,87,.35);background:rgba(151,251,87,.08);font-size:.75rem}
-    .banner{background:rgba(151,251,87,.08);border:1px solid rgba(151,251,87,.35)}
+
+    /* Avatar ring */
+    .ring-accent{ box-shadow:0 0 0 2px rgba(151,251,87,.6); }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -47,23 +54,31 @@
         <a href="index.html" class="p-2 rounded-full hover:bg-[#1e1e1e]" title="Client App">
           <i data-feather="arrow-left" class="accent-text"></i>
         </a>
-        <h1 class="text-xl font-bold">Trainer <span class="accent-text">Dashboard</span></h1>
+        <h1 class="text-xl font-bold">
+          Trainer <span class="accent-text">Dashboard</span>
+        </h1>
         <span id="trainerName" class="ml-3 text-sm text-muted"></span>
       </div>
-      <div class="flex items-center gap-2">
-        <a href="trainer-program-builder.html" class="btn-accent px-3 py-2 rounded-lg">
-          <i data-feather="file-plus" class="inline mr-1"></i>Create Program
+
+      <!-- Right: user chip -->
+      <div class="flex items-center gap-3">
+        <a href="signup-trainer.html" class="btn-ghost px-3 py-2 rounded-lg hidden" id="completeProfileBtn">
+          Complete Profile
         </a>
-        <a href="signup-trainer.html" class="btn-ghost px-3 py-2 rounded-lg hidden" id="completeProfileBtn">Complete Profile</a>
-        <button class="btn-ghost px-3 py-2 rounded-lg" onclick="AuthGuard.signOut()">
-          <i data-feather="log-out" class="inline mr-1"></i> Sign out
-        </button>
+
+        <div id="userChip" class="hidden sm:flex items-center gap-3 pl-3 ml-1 border-l border-[rgba(144,144,144,0.35)]">
+          <img id="userAvatar" src="" alt="Profile photo" class="w-9 h-9 rounded-full object-cover ring-accent" />
+          <div class="leading-4">
+            <p id="welcomeName" class="text-sm font-semibold">Welcome</p>
+            <p id="welcomeEmail" class="text-xs text-muted"></p>
+          </div>
+          <button id="signOutBtn" class="ml-2 px-3 py-2 rounded-lg btn-ghost text-sm">
+            <i data-feather="log-out" class="inline mr-1"></i> Sign Out
+          </button>
+        </div>
       </div>
     </div>
   </header>
-
-  <!-- Summary banner (filled in JS) -->
-  <div id="topBanner" class="container mx-auto mt-4"></div>
 
   <!-- Content -->
   <main class="container mx-auto p-4 flex-1">
@@ -136,19 +151,27 @@
     <div class="panel rounded-xl p-6 w-full max-w-2xl mx-4">
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-lg font-semibold">Client</h3>
-        <button id="closeClientModal" class="p-2 rounded hover:bg-[#2a2a2a]"><i data-feather="x"></i></button>
+        <button id="closeClientModal" class="p-2 rounded hover:bg-[#2a2a2a]">
+          <i data-feather="x"></i>
+        </button>
       </div>
 
-      <div id="clientHeader" class="flex items-center gap-3 mb-3"></div>
+      <div id="clientHeader" class="flex items-center gap-3 mb-3">
+        <!-- avatar -->
+      </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="panel rounded-lg p-3">
           <h4 class="font-semibold mb-2">Profile</h4>
-          <dl class="text-sm space-y-1" id="clientProfile"></dl>
+          <dl class="text-sm space-y-1" id="clientProfile">
+            <!-- entries -->
+          </dl>
         </div>
         <div class="panel rounded-lg p-3">
           <h4 class="font-semibold mb-2">Recent Logs</h4>
-          <div id="clientLogs" class="space-y-2"></div>
+          <div id="clientLogs" class="space-y-2">
+            <!-- logs -->
+          </div>
         </div>
       </div>
 
@@ -173,7 +196,6 @@
     const el = (id)=>document.getElementById(id);
 
     const trainerNameEl = el('trainerName');
-    const topBannerEl   = el('topBanner');
     const kpiClientsEl  = el('kpiClients');
     const kpiActiveEl   = el('kpiActive');
     const kpiSessionsEl = el('kpiSessions');
@@ -193,49 +215,76 @@
     const openEmailLink = el('openEmail');
     const unlinkClientBtn = el('unlinkClientBtn');
 
+    // New: user chip elements
+    const userChip   = el('userChip');
+    const userAvatar = el('userAvatar');
+    const welcomeName= el('welcomeName');
+    const welcomeEmail = el('welcomeEmail');
+    const signOutBtn = el('signOutBtn');
+
     feather.replace();
+
+    // helpers for avatar initials
+    function svgInitials(nameOrEmail){
+      const txt = (String(nameOrEmail||'User').match(/\b\w/g)||['U','S']).slice(0,2).join('').toUpperCase();
+      const svg = `
+        <svg xmlns='http://www.w3.org/2000/svg' width='128' height='128'>
+          <rect width='100%' height='100%' rx='64' ry='64' fill='rgba(151,251,87,0.15)'/>
+          <text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle'
+                font-family='Inter, Arial' font-size='54' fill='#97FB57'>${txt}</text>
+        </svg>`;
+      return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+    }
 
     // Load signed-in trainer + profile
     AuthGuard.onAuth(async (user)=>{
       currentUser = user;
       if(!user) return;
-      trainerProfile = await AuthGuard.getProfile();
-      trainerNameEl.textContent = trainerProfile?.fullName ? `Hi, ${trainerProfile.fullName}` : '';
-      if(!trainerProfile?.fullName) { el('completeProfileBtn').classList.remove('hidden'); }
+
+      // Profile preference: Firestore profile (your app) -> Auth
+      trainerProfile = await AuthGuard.getProfile(); // expects { fullName, photoURL, email, ... }
+      const displayName = trainerProfile?.fullName || user.displayName || '';
+      const email = trainerProfile?.email || user.email || '';
+      const photoURL = trainerProfile?.photoURL || user.photoURL || '';
+
+      // Header greeting on left (kept)
+      trainerNameEl.textContent = displayName ? `Hi, ${displayName}` : '';
+
+      // Show Complete Profile if no fullName saved
+      if(!trainerProfile?.fullName) {
+        el('completeProfileBtn').classList.remove('hidden');
+      }
+
+      // Render user chip (right)
+      welcomeName.textContent = displayName ? `Welcome ${displayName}` : 'Welcome';
+      welcomeEmail.textContent = email || '';
+      userAvatar.src = photoURL || svgInitials(displayName || email);
+      userChip.classList.remove('hidden');
+
+      // Sign out
+      signOutBtn.addEventListener('click', async ()=>{
+        try { await AuthGuard.signOut(); }
+        finally { window.location.replace('login.html'); }
+      });
+
       await loadKPIs();
       await loadClients();
       await loadPending();
+
+      feather.replace();
     });
 
     // ------- KPIs -------
     async function loadKPIs(){
       if(!currentUser) return;
+      // Total clients
       const q1 = await db.collection('users')
         .where('role','==','client')
         .where('trainerId','==', currentUser.uid)
         .get();
-      const totalClients = q1.size;
-      kpiClientsEl.textContent = totalClients;
+      kpiClientsEl.textContent = q1.size;
 
-      // Banner summary
-      topBannerEl.innerHTML = `
-        <div class="container mx-auto banner rounded-xl p-4 flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <i data-feather="users" class="accent-text"></i>
-            <div class="text-sm">
-              ${totalClients ? `You have <b>${totalClients}</b> linked client${totalClients>1?'s':''}.` : `You don’t have any clients yet.`}
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <a href="trainer-program-builder.html" class="btn-accent px-3 py-2 rounded-lg text-sm">
-              <i data-feather="file-plus" class="inline mr-1"></i>Create Program
-            </a>
-            ${totalClients ? '' : '<a href="#addClientForm" class="btn-ghost px-3 py-2 rounded-lg text-sm">Link a Client</a>'}
-          </div>
-        </div>`;
-      feather.replace();
-
-      // Sessions stats
+      // Sessions 30d (sum of logs for these clients)
       const since = new Date(); since.setDate(since.getDate()-30);
       const sinceISO = since.toISOString().slice(0,10);
 
@@ -243,6 +292,7 @@
       const sinceWeek = new Date(); sinceWeek.setDate(sinceWeek.getDate()-7);
       const sinceWeekISO = sinceWeek.toISOString().slice(0,10);
 
+      // naive approach: fetch each client’s recent logs (ensure security rules permit trainer read)
       const clientIds = q1.docs.map(d=>d.id);
       for (const cid of clientIds) {
         const logsSnap = await db.collection('workouts').doc(cid).collection('logs')
@@ -250,8 +300,8 @@
           .orderBy('date','desc')
           .get();
         totalSessions += logsSnap.size;
-        const weekCount = logsSnap.docs.filter(x => (x.data().date || '') >= sinceWeekISO).length;
-        if (weekCount > 0) activeThisWeek++;
+        const weekSnap = logsSnap.docs.filter(x => (x.data().date || '') >= sinceWeekISO);
+        if (weekSnap.length > 0) activeThisWeek++;
       }
       kpiSessionsEl.textContent = totalSessions;
       kpiActiveEl.textContent = activeThisWeek;
@@ -273,23 +323,11 @@
 
     function renderClients(list){
       if(!list.length){
-        clientsListEl.innerHTML = `
-          <div class="p-6 text-center">
-            <div class="mx-auto w-12 h-12 rounded-full flex items-center justify-center accent-chip mb-2">
-              <i data-feather="user-x" class="accent-text"></i>
-            </div>
-            <p class="font-medium">No clients yet</p>
-            <p class="text-sm text-muted mb-3">Link a client by email or create a program template for future clients.</p>
-            <div class="flex items-center justify-center gap-2">
-              <a href="#addClientForm" class="btn-ghost px-3 py-2 rounded-lg text-sm">Link Client</a>
-              <a href="trainer-program-builder.html" class="btn-accent px-3 py-2 rounded-lg text-sm">Create Program</a>
-            </div>
-          </div>`;
-        feather.replace();
+        clientsListEl.innerHTML = `<div class="text-muted text-sm p-4">No clients yet. Link a client using the form on the right.</div>`;
         return;
       }
       clientsListEl.innerHTML = list.map(c=>{
-        const avatar = c.photoURL || 'https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57';
+        const avatar = c.photoURL || ('https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57');
         return `
           <div class="p-3 flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -301,9 +339,9 @@
             </div>
             <div class="flex items-center gap-2">
               ${c.daysPerWeek ? `<span class="pill">${c.daysPerWeek} d/wk</span>`:''}
-              <a class="btn-ghost px-3 py-2 rounded-lg" onclick='openClient("${c.id}")'>
+              <button class="btn-ghost px-3 py-2 rounded-lg" onclick='openClient("${c.id}")'>
                 <i data-feather="eye" class="inline mr-1"></i> View
-              </a>
+              </button>
             </div>
           </div>`;
       }).join('');
@@ -328,6 +366,7 @@
       if(!email) return;
 
       try{
+        // find user with that email (requires an index on users.email)
         const snap = await db.collection('users').where('email','==',email).limit(1).get();
         if(snap.empty){
           addClientMsg.className = 'text-sm text-red-400';
@@ -335,7 +374,9 @@
           return;
         }
         const userDoc = snap.docs[0];
-        await db.collection('users').doc(userDoc.id).set({ trainerId: currentUser.uid }, { merge:true });
+        await db.collection('users').doc(userDoc.id).set({
+          trainerId: currentUser.uid
+        }, { merge:true });
 
         addClientMsg.className = 'text-sm text-green-400';
         addClientMsg.textContent = 'Client linked!';
@@ -402,11 +443,12 @@
 
     // ------- Client modal -------
     window.openClient = async function(uid){
-      const docSnap = await db.collection('users').doc(uid).get();
-      if(!docSnap.exists){ alert('Client not found'); return; }
-      const c = { id: uid, ...docSnap.data() };
+      // fetch profile
+      const doc = await db.collection('users').doc(uid).get();
+      if(!doc.exists){ alert('Client not found'); return; }
+      const c = { id: uid, ...doc.data() };
 
-      const avatar = c.photoURL || 'https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57';
+      const avatar = c.photoURL || ('https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57');
 
       clientHeader.innerHTML = `
         <img src="${avatar}" class="w-12 h-12 rounded-full object-cover border border-[rgba(151,251,87,.35)]" alt="">
@@ -427,6 +469,7 @@
         <div><span class="text-muted">Notes:</span> ${c.additionalInfo || '—'}</div>
       `;
 
+      // logs
       const logsSnap = await db.collection('workouts').doc(uid).collection('logs')
         .orderBy('date','desc').limit(10).get();
       if (logsSnap.empty){
@@ -447,6 +490,7 @@
         }).join('');
       }
 
+      // action links
       openEmailLink.href = c.email ? `mailto:${encodeURIComponent(c.email)}` : '#';
       unlinkClientBtn.onclick = async ()=>{
         if(!confirm('Unlink this client from you?')) return;
