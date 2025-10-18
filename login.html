@@ -9,10 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- (Optional) If you already use this elsewhere, keep it; it's guarded below to avoid double init -->
-  <script type="module" src="firebase-init.js"></script>
-
-  <!-- Firebase compat SDKs (good for static hosting like GitHub Pages) -->
+  <!-- Firebase compat SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
@@ -23,27 +20,25 @@
     html,body{height:100%}
     body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
     .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
-    .card{background:#171717;border:1px solid rgba(144,144,144,.35)}
     .accent-text{color:var(--accent)}
     .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 0 12px rgba(151,251,87,.45), inset 0 0 0 1px rgba(18,18,18,.4);transition:filter .15s ease, transform .05s ease}
     .btn-accent:hover{filter:brightness(.95)}
     .btn-accent:active{transform:translateY(1px)}
-    .btn-ghost{background:#232323;color:var(--light);border:1px solid rgba(144,144,144,.35);transition:background .15s ease, transform .05s ease}
+    .btn-ghost{background:#232323;color:var(--light);border:1px solid rgba(144,144,144,.35);transition:background .15s ease}
     .btn-ghost:hover{background:#2a2a2a}
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
   </style>
 </head>
+
 <body class="min-h-screen flex items-center justify-center p-4">
   <main class="w-full max-w-md">
-    <!-- Header / Logo -->
     <div class="text-center mb-6">
       <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
       <p class="text-sm text-muted mt-1">Welcome back! Log in to your account.</p>
     </div>
 
-    <!-- Card -->
     <section class="panel rounded-2xl p-6">
       <form id="loginForm" class="space-y-4" novalidate>
         <div>
@@ -81,7 +76,6 @@
           <a href="signup-trainer.html" class="accent-text hover:underline">Register here</a>
         </div>
 
-        <!-- Status / Errors -->
         <p id="status" class="text-sm mt-2 h-5"></p>
       </form>
     </section>
@@ -94,7 +88,7 @@
   <script>
     feather.replace();
 
-    // ---- Firebase Init (guard against double init if firebase-init.js already ran) ----
+    // ---- Firebase Init ----
     const firebaseConfig = {
       apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
       authDomain: "ironpump-gym-tracker.firebaseapp.com",
@@ -125,56 +119,45 @@
       }
     }
 
+    // ✅ Debug-enabled version of routeAfterLogin
     async function routeAfterLogin(uid) {
-      // optional ?next=... will override
-      const urlParams = new URLSearchParams(location.search);
-      const next = urlParams.get('next');
-
-      // try a few times in case the profile is written async on signup
       let role = null;
       for (let i = 0; i < 3 && !role; i++) {
         role = await getUserRole(uid);
+        console.log('[login] uid:', uid, 'attempt:', i + 1, 'role:', role);
         if (!role) await new Promise(r => setTimeout(r, 300));
       }
 
-      if (role === 'trainer') {
-        location.replace(next || 'trainer-dashboard.html');
-      } else {
-        location.replace(next || 'index.html');
-      }
+      const next = new URLSearchParams(location.search).get('next');
+      if (role === 'trainer') location.replace(next || 'trainer-dashboard.html');
+      else location.replace(next || 'index.html');
     }
 
-    // If already signed in, route by role
+    // ---------- Auth listener ----------
     auth.onAuthStateChanged((u) => {
       if (u) routeAfterLogin(u.uid);
     });
 
-    // ---- UI helpers ----
+    // ---------- UI helpers ----------
     const emailEl = document.getElementById('email');
-    const pwEl    = document.getElementById('password');
+    const pwEl = document.getElementById('password');
     const rememberEl = document.getElementById('remember');
-    const statusEl   = document.getElementById('status');
-    const loginBtn   = document.getElementById('loginBtn');
+    const statusEl = document.getElementById('status');
+    const loginBtn = document.getElementById('loginBtn');
 
-    function setLoading(isLoading){
-      loginBtn.disabled = isLoading;
-      loginBtn.style.opacity = isLoading ? 0.7 : 1;
-      statusEl.textContent = isLoading ? 'Signing in…' : '';
-      statusEl.style.color = isLoading ? 'var(--muted)' : '';
+    function setLoading(b){
+      loginBtn.disabled = b;
+      loginBtn.style.opacity = b ? 0.7 : 1;
+      statusEl.textContent = b ? 'Signing in…' : '';
+      statusEl.style.color = b ? 'var(--muted)' : '';
     }
-    function showError(msg){
-      statusEl.textContent = msg;
-      statusEl.style.color = '#ff6b6b';
-    }
-    function showSuccess(msg){
-      statusEl.textContent = msg;
-      statusEl.style.color = 'var(--accent)';
-    }
+    function showError(m){ statusEl.textContent = m; statusEl.style.color = '#ff6b6b'; }
+    function showSuccess(m){ statusEl.textContent = m; statusEl.style.color = 'var(--accent)'; }
 
     // Toggle password visibility
     document.getElementById('togglePw').addEventListener('click', () => {
-      const t = pwEl.getAttribute('type') === 'password' ? 'text' : 'password';
-      pwEl.setAttribute('type', t);
+      const t = pwEl.type === 'password' ? 'text' : 'password';
+      pwEl.type = t;
       const icon = t === 'password' ? 'eye' : 'eye-off';
       document.querySelector('#togglePw i').setAttribute('data-feather', icon);
       feather.replace();
@@ -183,24 +166,23 @@
     // Forgot password
     document.getElementById('forgotBtn').addEventListener('click', async () => {
       const email = emailEl.value.trim();
-      if (!email) { showError('Enter your email first.'); return; }
-      try{
+      if (!email) return showError('Enter your email first.');
+      try {
         await auth.sendPasswordResetEmail(email);
         showSuccess('Password reset email sent.');
-      }catch(err){
+      } catch(err) {
         showError(prettyAuthError(err));
       }
     });
 
-    // Login submit
+    // ---------- Login submit ----------
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = emailEl.value.trim();
       const pass  = pwEl.value;
+      if (!email || !pass) return showError('Please fill in email and password.');
 
-      if (!email || !pass) { showError('Please fill in email and password.'); return; }
-
-      try{
+      try {
         setLoading(true);
         await auth.setPersistence(rememberEl.checked
           ? firebase.auth.Auth.Persistence.LOCAL
@@ -208,7 +190,7 @@
         );
         const { user } = await auth.signInWithEmailAndPassword(email, pass);
         await routeAfterLogin(user.uid);
-      }catch(err){
+      } catch(err) {
         showError(prettyAuthError(err));
       } finally {
         setLoading(false);
@@ -216,7 +198,7 @@
     });
 
     function prettyAuthError(err){
-      const code = err && err.code ? String(err.code) : '';
+      const code = err?.code || '';
       switch(code){
         case 'auth/invalid-email': return 'Invalid email address.';
         case 'auth/user-disabled': return 'This account has been disabled.';
