@@ -203,8 +203,13 @@
       const isPassword = pwEl.type === 'password';
       pwEl.type = isPassword ? 'text' : 'password';
       const icon = isPassword ? 'eye-off' : 'eye';
-      document.querySelector('#togglePw i').setAttribute('data-feather', icon);
-      feather.replace();
+      const iconEl = document.querySelector('#togglePw i');
+      if (iconEl) {
+        iconEl.setAttribute('data-feather', icon);
+        if (window.feather && typeof feather.replace === 'function') {
+          feather.replace();
+        }
+      }
     });
 
     document.getElementById('forgotBtn').addEventListener('click', async () => {
@@ -234,6 +239,7 @@
         statusEl.textContent = '';
         await routeAfterLogin(cred.user.uid);
       } catch (e) {
+        console.error('[Auth] signIn failed:', e.code, e.message);
         statusEl.textContent = friendlyAuthError(e);
         statusEl.style.color = '#ff6b6b';
       } finally {
