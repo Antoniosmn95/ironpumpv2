@@ -67,7 +67,7 @@
     .title { font-size: 1.55rem; }
 
     .spinner {
-      width: 16px; height: 16px; border-radius: 9999px;
+      width: 18px; height: 18px; border-radius: 9999px;
       border: 2px solid rgba(255,255,255,.25); border-top-color: rgba(255,255,255,.95);
       animation: spin .8s linear infinite; display:inline-block; vertical-align: -2px; margin-right: .45rem;
     }
@@ -77,13 +77,24 @@
     #welcomeOverlay{
       position: fixed; inset: 0; background: rgba(0,0,0,.75);
       display: none; align-items: center; justify-content: center; z-index: 9999;
-      backdrop-filter: blur(2px);
+      backdrop-filter: blur(2px); animation: fadeIn .15s ease-out;
     }
     .welcome-card{
       background:#151515; border:1px solid rgba(144,144,144,.35);
-      border-radius: 1rem; padding: 1.25rem 1.4rem; text-align: center; width: 90%; max-width: 380px;
+      border-radius: 1rem; padding: 1.25rem 1.4rem; text-align: center; width: 90%; max-width: 420px;
       box-shadow: 0 10px 30px rgba(0,0,0,.45);
+      animation: pop .18s ease-out;
     }
+    .welcome-logo{
+      width: 72px; height: 72px; border-radius: .75rem; object-fit: contain;
+      border:1px solid rgba(144,144,144,.35); background:#111; margin: 0 auto .65rem;
+    }
+    .welcome-spinner{
+      width: 22px; height: 22px; border-width: 3px; margin: .35rem auto 0;
+      border-radius: 9999px; border: 3px solid rgba(255,255,255,.22); border-top-color: #fff; animation: spin .8s linear infinite;
+    }
+    @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+    @keyframes pop { from { transform: translateY(6px) scale(.98); opacity:.9 } to { transform: translateY(0) scale(1); opacity:1 } }
   </style>
 </head>
 <body class="min-h-[100svh] flex items-start justify-center p-3 md:p-4">
@@ -106,7 +117,7 @@
           <div class="stack">
             <label for="password">Password</label>
             <div class="relative">
-              <input id="password" type="password" required minlength="6" pattern="^\\S+$"
+              <input id="password" type="password" required minlength="6" pattern="^\S+$"
                 class="input pr-10" placeholder="••••••••" autocomplete="new-password"/>
               <button type="button" id="togglePw"
                 class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted"
@@ -117,13 +128,13 @@
           </div>
           <div class="stack">
             <label for="password2">Confirm Password</label>
-            <input id="password2" type="password" required pattern="^\\S+$"
+            <input id="password2" type="password" required pattern="^\S+$"
               class="input" placeholder="Repeat password" autocomplete="new-password"/>
           </div>
           <div class="stack">
             <label for="fullName">Full Name</label>
             <input id="fullName" type="text"
-              pattern="^[A-Za-z\\u0600-\\u06FF\\s]{2,}$"
+              pattern="^[A-Za-z\u0600-\u06FF\s]{2,}$"
               title="Only letters and spaces are allowed"
               class="input" placeholder="Your name" autocomplete="name"/>
           </div>
@@ -147,7 +158,7 @@
           <div class="stack">
             <label for="phone">Phone Number</label>
             <input id="phone" type="tel" inputmode="tel" maxlength="17"
-              pattern="^\\+?[0-9][0-9\\s\\-]{5,14}$"
+              pattern="^\+?[0-9][0-9\s\-]{5,14}$"
               title="Digits only (6–15), spaces and - allowed, optional + at start"
               class="input" placeholder="+961 71 234 567"/>
           </div>
@@ -193,7 +204,7 @@
           <div class="stack">
             <label for="languages">Languages (comma-separated)</label>
             <input id="languages" type="text"
-              pattern="^[A-Za-z\\u0600-\\u06FF,\\s]+$"
+              pattern="^[A-Za-z\u0600-\u06FF,\s]+$"
               title="Only letters (Arabic/Latin), commas and spaces"
               class="input" placeholder="English, Arabic"/>
           </div>
@@ -243,13 +254,12 @@
   </main>
 
   <!-- Welcome overlay (shown after signup) -->
-  <div id="welcomeOverlay">
+  <div id="welcomeOverlay" aria-hidden="true">
     <div class="welcome-card">
-      <div class="flex items-center justify-center mb-2">
-        <span class="spinner"></span>
-        <span class="font-semibold">Setting up your account…</span>
-      </div>
-      <p class="text-sm text-muted">Welcome to your <span class="accent-text font-semibold">Iron</span>Pump Dashboard</p>
+      <img src="ironpump.png" alt="IronPump" class="welcome-logo">
+      <h3 class="text-lg font-semibold mb-1">Welcome to <span class="accent-text">Iron</span>Pump</h3>
+      <p class="text-sm text-muted">We’re setting up your dashboard…</p>
+      <div class="welcome-spinner" role="status" aria-label="Loading"></div>
     </div>
   </div>
 
@@ -271,6 +281,8 @@
     const auth = exportedAuth || getAuth(app);
     const db   = exportedDb   || getFirestore(app);
     const storage = getStorage(app);
+
+    const JUST_KEY = 'ironpump_justSignedUp';
 
     // Helpers
     const $ = (id) => document.getElementById(id);
@@ -349,11 +361,11 @@
     buttons.forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.value)));
     setActive('4');
 
-    // If already signed in (e.g., page refresh after signup), go straight to dashboard
+    // If already signed in (fresh visit) and not just-signed-up, go to dashboard
     onAuthStateChanged(auth, async (u) => {
       if (!u) return;
       try { await reload(u); } catch {}
-      // No verification check — direct access
+      if (sessionStorage.getItem(JUST_KEY) === '1') return; // let the overlay flow handle redirect
       window.location.replace('index.html');
     });
 
@@ -423,9 +435,13 @@
         }, { merge: true });
 
         // Show welcome overlay and redirect shortly
+        sessionStorage.setItem(JUST_KEY, '1');
         const overlay = document.getElementById('welcomeOverlay');
         overlay.style.display = 'flex';
-        setTimeout(() => window.location.replace('index.html'), 1200);
+        setTimeout(() => {
+          sessionStorage.removeItem(JUST_KEY);
+          window.location.replace('index.html');
+        }, 1400); // feel free to tweak duration
 
       }catch(err){
         console.error(err);
