@@ -119,14 +119,13 @@
           <div class="stack">
             <label for="email">Email</label>
             <input id="email" type="email" required
-              pattern="^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               autocapitalize="none" autocomplete="email" spellcheck="false" autocorrect="off"
               class="input" placeholder="you@example.com"/>
           </div>
           <div class="stack">
             <label for="password">Password</label>
             <div class="relative">
-              <input id="password" type="password" required minlength="6" pattern="^\\S+$"
+              <input id="password" type="password" required minlength="6" pattern="^\S+$"
                 class="input pr-10" placeholder="••••••••" autocomplete="new-password"/>
               <button type="button" id="togglePw"
                 class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted"
@@ -137,20 +136,20 @@
           </div>
           <div class="stack">
             <label for="password2">Confirm Password</label>
-            <input id="password2" type="password" required pattern="^\\S+$"
+            <input id="password2" type="password" required pattern="^\S+$"
               class="input" placeholder="Repeat password" autocomplete="new-password"/>
           </div>
           <div class="stack">
             <label for="fullName">Full Name</label>
             <input id="fullName" type="text"
-              pattern="^[A-Za-z\\u0600-\\u06FF\\s]{2,}$"
+              pattern="^[A-Za-z\u0600-\u06FF\s]{2,}$"
               title="Only letters and spaces are allowed"
               class="input" placeholder="Your name" autocomplete="name"/>
           </div>
           <div class="stack">
             <label for="dob">Date of Birth</label>
             <input id="dob" type="date" class="input" required
-              min="1900-01-01" max="2025-12-31" placeholder="YYYY-MM-DD"/>
+              min="1900-01-01" placeholder="YYYY-MM-DD"/>
             <small class="help">Click to open the calendar.</small>
           </div>
         </div>
@@ -167,7 +166,7 @@
           <div class="stack">
             <label for="phone">Phone Number</label>
             <input id="phone" type="tel" inputmode="tel" maxlength="17"
-              pattern="^\\+?[0-9][0-9\\s\\-]{5,14}$"
+              pattern="^\+?[0-9][0-9\s\-]{5,14}$"
               title="Digits only (6–15), spaces and - allowed, optional + at start"
               class="input" placeholder="+961 71 234 567"/>
           </div>
@@ -213,7 +212,7 @@
           <div class="stack">
             <label for="languages">Languages (comma-separated)</label>
             <input id="languages" type="text"
-              pattern="^[A-Za-z\\u0600-\\u06FF,\\s]+$"
+              pattern="^[A-Za-z\u0600-\u06FF,\s]+$"
               title="Only letters (Arabic/Latin), commas and spaces"
               class="input" placeholder="English, Arabic"/>
           </div>
@@ -294,10 +293,10 @@
       getStorage, ref, uploadBytes, getDownloadURL
     } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
 
-    // Use the single initialized app; fallback to local if not exported
+    // Use the single initialized app
     const auth = exportedAuth || getAuth(app);
     const db   = exportedDb   || getFirestore(app);
-    const storage = getStorage(app); // bucket from firebase-init.js (appspot.com)
+    const storage = getStorage(app);
 
     // Helpers
     const $ = (id) => document.getElementById(id);
@@ -312,6 +311,20 @@
     }
     function showError(m){ statusEl.textContent = m; statusEl.style.color = '#ff6b6b'; }
     function showSuccess(m){ statusEl.textContent = m; statusEl.style.color = 'var(--accent)'; }
+
+    // Keep email clean (spaces cause HTML5 email validation to fail)
+    (() => {
+      const em = $('email');
+      if (!em) return;
+      em.addEventListener('input', () => { em.value = em.value.replace(/\s+/g, ''); });
+      em.addEventListener('blur',  () => { em.value = em.value.trim(); });
+    })();
+
+    // DoB max = today (so native picker never blocks a valid date)
+    (() => {
+      const d = $('dob');
+      if (d) d.max = new Date().toISOString().slice(0,10);
+    })();
 
     // Eye toggle
     const togglePwBtn = $('togglePw');
@@ -370,17 +383,11 @@
       if (u.emailVerified) {
         location.href = 'index.html';
       } else {
-        showVerifyPanel(u.email);
+        const span = $('vEmail'); if (span) span.textContent = u.email || '';
+        $('verifyPanel').classList.remove('hidden');
       }
     });
 
-    function showVerifyPanel(email){
-      const span = $('vEmail');
-      if (span) span.textContent = email || '';
-      $('verifyPanel').classList.remove('hidden');
-      const hint = $('verifyHint');
-      if (hint) { hint.textContent = 'Tip: Sometimes it lands in Spam/Promotions.'; hint.style.color = 'var(--muted)'; }
-    }
     function hideVerifyPanel(){ $('verifyPanel').classList.add('hidden'); }
 
     // Submit
@@ -483,11 +490,11 @@
       const u = auth.currentUser;
       try {
         await sendEmailVerification(u);
-        const hint = $('verifyHint');
+        const hint = document.getElementById('verifyHint');
         hint.textContent = 'Verification email sent again.';
         hint.style.color = 'var(--accent)';
       } catch {
-        const hint = $('verifyHint');
+        const hint = document.getElementById('verifyHint');
         hint.textContent = 'Could not resend. Please try again later.';
         hint.style.color = '#ff6b6b';
       }
