@@ -9,10 +9,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Your modular Firebase init -->
+  <!-- Firebase init -->
   <script type="module" src="firebase-init.js"></script>
 
-  <!-- Flatpickr (optional themed date picker) -->
+  <!-- Flatpickr (optional) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
@@ -46,6 +46,10 @@
     .btn-accent:active{ transform:translateY(1px); }
     .btn-ghost{ background:#232323; color:var(--light); border:1px solid rgba(144,144,144,0.35); }
 
+    .seg{display:flex; gap:.4rem; background:#1b1b1b; padding:.35rem; border-radius:9999px; border:1px solid rgba(144,144,144,.35)}
+    .seg button{flex:1; padding:.45rem .85rem; border-radius:9999px; border:none; cursor:pointer; font-weight:600; color:var(--light); background:transparent}
+    .seg button.active{background:var(--accent); color:var(--bg); box-shadow: inset 0 0 0 1px rgba(0,0,0,.1), 0 0 10px rgba(151,251,87,.35)}
+
     .input{
       width:100%;
       padding:var(--input-pad-y) var(--input-pad-x);
@@ -66,14 +70,10 @@
 
     .title { font-size: 1.55rem; }
 
-    .spinner {
-      width: 18px; height: 18px; border-radius: 9999px;
-      border: 2px solid rgba(255,255,255,.25); border-top-color: rgba(255,255,255,.95);
-      animation: spin .8s linear infinite; display:inline-block; vertical-align: -2px; margin-right: .45rem;
-    }
+    .spinner { width: 18px; height: 18px; border-radius: 9999px; border: 2px solid rgba(255,255,255,.25); border-top-color: rgba(255,255,255,.95); animation: spin .8s linear infinite; display:inline-block; vertical-align: -2px; margin-right: .45rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Fullscreen welcome overlay */
+    /* Welcome overlay */
     #welcomeOverlay{
       position: fixed; inset: 0; background: rgba(0,0,0,.75);
       display: none; align-items: center; justify-content: center; z-index: 9999;
@@ -95,90 +95,84 @@
     }
     @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
     @keyframes pop { from { transform: translateY(6px) scale(.98); opacity:.9 } to { transform: translateY(0) scale(1); opacity:1 } }
+
+    /* hide blocks by role */
+    .hidden-block{ display:none; }
   </style>
 </head>
 <body class="min-h-[100svh] flex items-start justify-center p-3 md:p-4">
-  <main class="w-full max-w-[800px]">
+  <main class="w-full max-w-[960px]">
     <div class="mb-3 text-center">
+      <!-- Logo above header (as asked) -->
+      <img src="ironpum.png" alt="IronPump" style="width:72px;height:72px;object-fit:contain;margin:0 auto 8px;border-radius:.75rem;border:1px solid rgba(144,144,144,.35);background:#111">
       <h1 class="title font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
       <p class="text-xs text-muted mt-1">Create your account</p>
     </div>
 
-    <section class="panel rounded-xl p-3.5">
-      <form id="signupForm" class="stack" style="gap:var(--gap-md)" novalidate>
-        <!-- Auth block -->
+    <!-- Role toggle -->
+    <div class="flex justify-center mb-3">
+      <div class="seg" role="tablist" aria-label="Sign up as">
+        <button type="button" id="tabClient" class="active" role="tab" aria-selected="true">Client</button>
+        <button type="button" id="tabTrainer" role="tab" aria-selected="false">Trainer</button>
+      </div>
+    </div>
+    <p class="text-center text-xs text-muted mb-3" id="roleHint">You’re creating a <span class="accent-text font-semibold">Client</span> account.</p>
+
+    <section class="panel rounded-xl p-3.5 md:p-4">
+      <!-- Client form -->
+      <form id="clientForm" class="stack" style="gap:var(--gap-md)" novalidate>
         <div class="form-grid">
           <div class="stack">
-            <label for="email">Email</label>
-            <input id="email" type="email" required
-              autocapitalize="none" autocomplete="email" spellcheck="false" autocorrect="off"
-              class="input" placeholder="you@example.com"/>
+            <label for="c_email">Email</label>
+            <input id="c_email" type="email" required autocapitalize="none" autocomplete="email" spellcheck="false" autocorrect="off" class="input" placeholder="you@example.com"/>
           </div>
           <div class="stack">
-            <label for="password">Password</label>
+            <label for="c_password">Password</label>
             <div class="relative">
-              <input id="password" type="password" required minlength="6" pattern="^\S+$"
-                class="input pr-10" placeholder="••••••••" autocomplete="new-password"/>
-              <button type="button" id="togglePw"
-                class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted"
-                aria-label="Toggle password" style="line-height:0">
-                <i data-feather="eye" class="w-4 h-4"></i>
-              </button>
+              <input id="c_password" type="password" required minlength="6" pattern="^\S+$" class="input pr-10" placeholder="••••••••" autocomplete="new-password"/>
+              <button type="button" id="c_togglePw" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Toggle password" style="line-height:0"><i data-feather="eye" class="w-4 h-4"></i></button>
             </div>
           </div>
           <div class="stack">
-            <label for="password2">Confirm Password</label>
-            <input id="password2" type="password" required pattern="^\S+$"
-              class="input" placeholder="Repeat password" autocomplete="new-password"/>
+            <label for="c_password2">Confirm Password</label>
+            <input id="c_password2" type="password" required pattern="^\S+$" class="input" placeholder="Repeat password" autocomplete="new-password"/>
           </div>
           <div class="stack">
-            <label for="fullName">Full Name</label>
-            <input id="fullName" type="text"
-              pattern="^[A-Za-z\u0600-\u06FF\s]{2,}$"
-              title="Only letters and spaces are allowed"
-              class="input" placeholder="Your name" autocomplete="name"/>
+            <label for="c_fullName">Full Name</label>
+            <input id="c_fullName" type="text" pattern="^[A-Za-z\u0600-\u06FF\s]{2,}$" title="Only letters and spaces are allowed" class="input" placeholder="Your name" autocomplete="name"/>
           </div>
           <div class="stack">
-            <label for="dob">Date of Birth</label>
-            <input id="dob" type="date" class="input" required
-              min="1900-01-01" placeholder="YYYY-MM-DD"/>
+            <label for="c_dob">Date of Birth</label>
+            <input id="c_dob" type="date" class="input" required min="1900-01-01" placeholder="YYYY-MM-DD"/>
             <small class="help">Click to open the calendar.</small>
           </div>
         </div>
 
-        <!-- Profile image -->
         <div class="stack">
-          <label for="photo">Profile Picture</label>
-          <input id="photo" type="file" accept="image/*" class="input"/>
+          <label for="c_photo">Profile Picture</label>
+          <input id="c_photo" type="file" accept="image/*" class="input"/>
           <small>Optional. JPG/PNG ≤ 5 MB.</small>
         </div>
 
-        <!-- Stats -->
         <div class="form-grid">
           <div class="stack">
-            <label for="phone">Phone Number</label>
-            <input id="phone" type="tel" inputmode="tel" maxlength="17"
-              pattern="^\+?[0-9][0-9\s\-]{5,14}$"
-              title="Digits only (6–15), spaces and - allowed, optional + at start"
-              class="input" placeholder="+961 71 234 567"/>
+            <label for="c_phone">Phone Number</label>
+            <input id="c_phone" type="tel" inputmode="tel" maxlength="17" pattern="^\+?[0-9][0-9\s\-]{5,14}$" title="Digits only (6–15), spaces and - allowed, optional + at start" class="input" placeholder="+961 71 234 567"/>
           </div>
           <div class="stack">
-            <label for="height">Height (cm)</label>
-            <input id="height" type="number" min="100" max="250" step="1" inputmode="numeric"
-              class="input" placeholder="e.g. 178"/>
+            <label for="c_height">Height (cm)</label>
+            <input id="c_height" type="number" min="100" max="250" step="1" inputmode="numeric" class="input" placeholder="e.g. 178"/>
           </div>
           <div class="stack">
-            <label for="weight">Weight (kg)</label>
-            <input id="weight" type="number" min="30" max="300" step="0.1" inputmode="decimal"
-              class="input" placeholder="e.g. 75"/>
+            <label for="c_weight">Weight (kg)</label>
+            <input id="c_weight" type="number" min="30" max="300" step="0.1" inputmode="decimal" class="input" placeholder="e.g. 75"/>
           </div>
         </div>
 
-        <!-- Preferences -->
         <div class="form-grid">
           <div class="stack">
-            <label for="country">Country</label>
-            <select id="country" class="input">
+            <label for="c_country">Country</label>
+            <select id="c_country" class="input">
               <option value="" selected disabled>Select Country</option>
               <option value="Lebanon">🇱🇧 Lebanon</option>
               <option value="Saudi Arabia">🇸🇦 Saudi Arabia</option>
@@ -202,51 +196,167 @@
           </div>
 
           <div class="stack">
-            <label for="languages">Languages (comma-separated)</label>
-            <input id="languages" type="text"
-              pattern="^[A-Za-z\u0600-\u06FF,\s]+$"
-              title="Only letters (Arabic/Latin), commas and spaces"
-              class="input" placeholder="English, Arabic"/>
+            <label for="c_languages">Languages (comma-separated)</label>
+            <input id="c_languages" type="text" pattern="^[A-Za-z\u0600-\u06FF,\s]+$" title="Only letters (Arabic/Latin), commas and spaces" class="input" placeholder="English, Arabic"/>
           </div>
 
           <div class="stack">
             <label>Training Location</label>
             <div class="flex gap-3">
-              <label class="inline-flex items-center gap-2"><input type="radio" name="where" value="home" checked><span>Home</span></label>
-              <label class="inline-flex items-center gap-2"><input type="radio" name="where" value="gym"><span>Gym</span></label>
+              <label class="inline-flex items-center gap-2"><input type="radio" name="c_where" value="home" checked><span>Home</span></label>
+              <label class="inline-flex items-center gap-2"><input type="radio" name="c_where" value="gym"><span>Gym</span></label>
             </div>
           </div>
 
           <div class="stack">
             <label class="text-xs">Days per Week</label>
-            <div id="daysSelector" class="flex flex-wrap gap-2">
-              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="1">1</button>
-              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="2">2</button>
-              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="3">3</button>
-              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="4">4</button>
-              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="5">5</button>
-              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="6">6</button>
-              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="7">7</button>
+            <div id="c_daysSelector" class="flex flex-wrap gap-2">
+              <button type="button" class="c-day btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="1">1</button>
+              <button type="button" class="c-day btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="2">2</button>
+              <button type="button" class="c-day btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="3">3</button>
+              <button type="button" class="c-day btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="4">4</button>
+              <button type="button" class="c-day btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="5">5</button>
+              <button type="button" class="c-day btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="6">6</button>
+              <button type="button" class="c-day btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="7">7</button>
             </div>
-            <input type="hidden" id="days" value="4">
-            <small id="daysHint">Selected: 4 days/week</small>
+            <input type="hidden" id="c_days" value="4">
+            <small id="c_daysHint">Selected: 4 days/week</small>
           </div>
         </div>
 
         <div class="stack">
-          <label for="extra" class="text-xs">Additional Info</label>
-          <textarea id="extra" rows="3" class="input" placeholder="Any injuries, goals, notes…"></textarea>
+          <label for="c_extra" class="text-xs">Additional Info</label>
+          <textarea id="c_extra" rows="3" class="input" placeholder="Any injuries, goals, notes…"></textarea>
         </div>
 
-        <button id="createBtn" class="w-full btn-accent py-2 rounded-lg font-medium flex items-center justify-center gap-2">
+        <button id="c_createBtn" class="w-full btn-accent py-2 rounded-lg font-medium flex items-center justify-center gap-2">
           <i data-feather="user-plus" class="w-4 h-4"></i><span>Create Account</span>
         </button>
 
-        <p id="status" class="text-[12px] h-4"></p>
+        <p id="c_status" class="text-[12px] h-4"></p>
 
-        <p class="text-xs text-center">Already have an account?
-          <a href="login.html" class="accent-text hover:underline">Log in</a>
-        </p>
+        <p class="text-xs text-center">Already have an account? <a href="login.html" class="accent-text hover:underline">Log in</a></p>
+      </form>
+
+      <!-- Trainer form -->
+      <form id="trainerForm" class="space-y-3.5 hidden-block" novalidate>
+        <div class="form-grid">
+          <div class="stack">
+            <label for="t_fullName">Full Name</label>
+            <input id="t_fullName" type="text" required pattern="^[A-Za-z\u0600-\u06FF\s]{2,}$" title="Only letters (Arabic/Latin) and spaces" class="input" placeholder="Your full name" autocomplete="name"/>
+          </div>
+          <div class="stack">
+            <label for="t_email">Email</label>
+            <input id="t_email" type="email" required autocapitalize="none" autocomplete="email" spellcheck="false" autocorrect="off" class="input" placeholder="coach@example.com"/>
+          </div>
+          <div class="stack">
+            <label for="t_password">Password</label>
+            <div class="relative">
+              <input id="t_password" type="password" required minlength="6" pattern="^\S+$" class="input pr-10" placeholder="••••••••" autocomplete="new-password"/>
+              <button type="button" id="t_togglePw" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Toggle password" style="line-height:0"><i data-feather="eye" class="w-4 h-4"></i></button>
+            </div>
+          </div>
+          <div class="stack">
+            <label for="t_password2">Confirm Password</label>
+            <input id="t_password2" type="password" required pattern="^\S+$" class="input" placeholder="Repeat password" autocomplete="new-password"/>
+          </div>
+          <div class="stack">
+            <label for="t_dob">Date of Birth</label>
+            <input id="t_dob" type="date" class="input" required min="1900-01-01" placeholder="YYYY-MM-DD"/>
+          </div>
+        </div>
+
+        <div class="stack">
+          <label for="t_photo">Profile Photo</label>
+          <input id="t_photo" type="file" accept="image/*" class="input"/>
+          <small>Optional. JPG/PNG ≤ 5 MB.</small>
+        </div>
+
+        <div class="form-grid">
+          <div class="stack">
+            <label for="t_phone">Phone</label>
+            <input id="t_phone" type="tel" inputmode="tel" maxlength="17" pattern="^\+?[0-9][0-9\s\-]{5,14}$" title="Digits only (6–15), spaces and - allowed, optional + at start" class="input" placeholder="+961 71 234 567"/>
+          </div>
+          <div class="stack">
+            <label for="t_country">Country</label>
+            <select id="t_country" required class="input">
+              <option value="" selected disabled>Select Country</option>
+              <option value="Lebanon">🇱🇧 Lebanon</option>
+              <option value="Saudi Arabia">🇸🇦 Saudi Arabia</option>
+              <option value="United Arab Emirates">🇦🇪 United Arab Emirates</option>
+              <option value="Qatar">🇶🇦 Qatar</option>
+              <option value="Kuwait">🇰🇼 Kuwait</option>
+              <option value="Bahrain">🇧🇭 Bahrain</option>
+              <option value="Oman">🇴🇲 Oman</option>
+              <option value="Yemen">🇾🇪 Yemen</option>
+              <option value="Jordan">🇯🇴 Jordan</option>
+              <option value="Syria">🇸🇾 Syria</option>
+              <option value="Iraq">🇮🇶 Iraq</option>
+              <option value="Egypt">🇪🇬 Egypt</option>
+              <option value="Sudan">🇸🇩 Sudan</option>
+              <option value="Morocco">🇲🇦 Morocco</option>
+              <option value="Algeria">🇩🇿 Algeria</option>
+              <option value="Tunisia">🇹🇳 Tunisia</option>
+              <option value="Libya">🇱🇾 Libya</option>
+              <option value="Mauritania">🇲🇷 Mauritania</option>
+              <option value="Somalia">🇸🇴 Somalia</option>
+              <option value="Palestine">🇵🇸 Palestine</option>
+              <option value="Comoros">🇰🇲 Comoros</option>
+              <option value="Djibouti">🇩🇯 Djibouti</option>
+            </select>
+          </div>
+          <div class="stack">
+            <label for="t_languages">Languages (comma-separated)</label>
+            <input id="t_languages" type="text" pattern="^[A-Za-z\u0600-\u06FF,\s]+$" title="Only letters (Arabic/Latin), commas and spaces" class="input" placeholder="English, Arabic"/>
+          </div>
+          <div class="stack">
+            <label for="t_org">Gym / Organization</label>
+            <input id="t_org" type="text" class="input" placeholder="Your gym or company"/>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="stack">
+            <label for="t_years">Years of Experience</label>
+            <input id="t_years" type="number" min="0" max="80" step="1" inputmode="numeric" class="input" placeholder="e.g. 5"/>
+          </div>
+          <div class="stack">
+            <label for="t_accepting">Accepting New Clients</label>
+            <select id="t_accepting" class="input"><option value="yes" selected>Yes</option><option value="no">No</option></select>
+          </div>
+          <div class="stack">
+            <label for="t_specialties">Specialties (comma-separated)</label>
+            <input id="t_specialties" type="text" class="input" placeholder="Hypertrophy, Fat loss, Powerlifting"/>
+          </div>
+          <div class="stack">
+            <label for="t_certs">Certifications</label>
+            <input id="t_certs" type="text" class="input" placeholder="NASM CPT, CSCS"/>
+          </div>
+        </div>
+
+        <div class="stack">
+          <label for="t_bio">Bio</label>
+          <textarea id="t_bio" rows="4" class="input" placeholder="Short introduction, coaching style, achievements…"></textarea>
+        </div>
+
+        <div class="form-grid">
+          <div class="stack">
+            <label for="t_social">Website / Instagram (optional)</label>
+            <input id="t_social" type="url" class="input" placeholder="https://instagram.com/yourhandle"/>
+          </div>
+          <div class="stack">
+            <label for="t_trainerCode">Trainer Invite Code (optional)</label>
+            <input id="t_trainerCode" type="text" class="input" placeholder="For linking clients later"/>
+          </div>
+        </div>
+
+        <button id="t_createBtn" class="w-full btn-accent py-2 rounded-lg font-medium flex items-center justify-center gap-2">
+          <i data-feather="user-plus" class="w-4 h-4"></i><span>Create Trainer Account</span>
+        </button>
+
+        <p id="t_status" class="text-[12px] mt-1 h-4"></p>
+
+        <p class="text-xs text-center mt-1.5">Already registered? <a href="login.html" class="accent-text hover:underline">Log in</a></p>
       </form>
     </section>
 
@@ -257,8 +367,8 @@
   <div id="welcomeOverlay" aria-hidden="true">
     <div class="welcome-card">
       <img src="ironpump.png" alt="IronPump" class="welcome-logo">
-      <h3 class="text-lg font-semibold mb-1">Welcome to <span class="accent-text">Iron</span>Pump</h3>
-      <p class="text-sm text-muted">We’re setting up your dashboard…</p>
+      <h3 id="welcomeTitle" class="text-lg font-semibold mb-1">Welcome to <span class="accent-text">Iron</span>Pump</h3>
+      <p id="welcomeMsg" class="text-sm text-muted">We’re setting up your dashboard…</p>
       <div class="welcome-spinner" role="status" aria-label="Loading"></div>
     </div>
   </div>
@@ -267,221 +377,288 @@
     feather.replace();
 
     import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
-    import {
-      getAuth, createUserWithEmailAndPassword, onAuthStateChanged, updateProfile, reload
-    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-    import {
-      getFirestore, doc, setDoc, serverTimestamp
-    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
-    import {
-      getStorage, ref, uploadBytes, getDownloadURL
-    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
+    import { getAuth, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged, reload } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+    import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
 
-    // Use the initialized app
     const auth = exportedAuth || getAuth(app);
     const db   = exportedDb   || getFirestore(app);
     const storage = getStorage(app);
 
-    const JUST_KEY = 'ironpump_justSignedUp';
+    // Keys prevent redirect loop during overlay
+    const JUST_CLIENT  = 'ironpump_client_justSignedUp';
+    const JUST_TRAINER = 'ironpump_trainer_justSignedUp';
 
-    // Helpers
+    // DOM helpers
     const $ = (id) => document.getElementById(id);
-    const statusEl = $('status');
 
-    function setLoading(b){
-      const createBtn = $('createBtn');
-      createBtn.disabled = b;
-      createBtn.style.opacity = b ? .7 : 1;
-      statusEl.textContent = b ? 'Creating account…' : '';
-      statusEl.style.color = b ? 'var(--muted)' : '';
+    // Role toggle
+    const tabClient  = $('tabClient');
+    const tabTrainer = $('tabTrainer');
+    const clientForm = $('clientForm');
+    const trainerForm= $('trainerForm');
+    const roleHint   = $('roleHint');
+
+    let currentRole = 'client'; // default
+
+    function setRole(role){
+      currentRole = role;
+      const isClient = role === 'client';
+      tabClient.classList.toggle('active', isClient);
+      tabTrainer.classList.toggle('active', !isClient);
+      clientForm.classList.toggle('hidden-block', !isClient);
+      trainerForm.classList.toggle('hidden-block', isClient);
+      roleHint.innerHTML = `You’re creating a <span class="accent-text font-semibold">${isClient ? 'Client' : 'Trainer'}</span> account.`;
     }
-    function showError(m){ statusEl.textContent = m; statusEl.style.color = '#ff6b6b'; }
+    tabClient.addEventListener('click', () => setRole('client'));
+    tabTrainer.addEventListener('click', () => setRole('trainer'));
+    setRole('client');
 
-    // Keep email clean
-    (() => {
-      const em = $('email');
-      if (!em) return;
-      em.addEventListener('input', () => { em.value = em.value.replace(/\s+/g, ''); });
-      em.addEventListener('blur',  () => { em.value = em.value.trim(); });
-    })();
+    // Shared utils
+    function splitCSV(v){ return v ? v.split(',').map(s=>s.trim()).filter(Boolean) : []; }
+    function daysUI(selector, hiddenId, hintId, defaultVal='4'){
+      const btns = document.querySelectorAll(selector);
+      const hidden = $(hiddenId);
+      const hint = $(hintId);
+      function setActive(val){
+        btns.forEach(b=>{
+          const on = b.dataset.value === val;
+          b.classList.toggle('btn-accent', on);
+          b.classList.toggle('btn-ghost', !on);
+        });
+        hidden.value = val;
+        hint.textContent = `Selected: ${val} day${val==='1'?'':'s'}/week`;
+      }
+      btns.forEach(b => b.addEventListener('click', ()=> setActive(b.dataset.value)));
+      setActive(defaultVal);
+    }
+    daysUI('.c-day', 'c_days', 'c_daysHint', '4');
+
+    // Sanitizers
+    function cleanEmail(el){ el.addEventListener('input',()=>{ el.value=el.value.replace(/\s+/g,''); }); el.addEventListener('blur',()=>{ el.value=el.value.trim(); }); }
+    function onlyPhoneChars(el){ el.addEventListener('input',e=>{ e.target.value=e.target.value.replace(/[^\d+\s-]/g,'').replace(/(?!^)\+/g,''); }); }
+    function onlyNameChars(el){ el.addEventListener('input',e=>{ e.target.value=e.target.value.replace(/[^A-Za-z\u0600-\u06FF\s]/g,''); }); }
+    function onlyLangChars(el){ el.addEventListener('input',e=>{ e.target.value=e.target.value.replace(/[^A-Za-z\u0600-\u06FF,\s]/g,''); }); }
+    function pwMatch(id1,id2){
+      const p1=$(id1), p2=$(id2);
+      function sync(){ if(p2.value && p1.value!==p2.value) p2.setCustomValidity('Passwords do not match.'); else p2.setCustomValidity(''); }
+      p1.addEventListener('input',sync); p2.addEventListener('input',sync);
+    }
+
+    // Apply sanitizers / toggles
+    cleanEmail($('c_email')); cleanEmail($('t_email'));
+    onlyPhoneChars($('c_phone')); onlyPhoneChars($('t_phone'));
+    onlyNameChars($('c_fullName')); onlyNameChars($('t_fullName'));
+    onlyLangChars($('c_languages')); onlyLangChars($('t_languages'));
+    pwMatch('c_password','c_password2'); pwMatch('t_password','t_password2');
+
+    $('c_togglePw').addEventListener('click', ()=>{
+      const el = $('c_password'); const isPw = el.type==='password'; el.type = isPw?'text':'password';
+      const icon = $('c_togglePw').querySelector('i'); if(icon){ icon.setAttribute('data-feather', isPw?'eye-off':'eye'); feather.replace(); }
+    });
+    $('t_togglePw').addEventListener('click', ()=>{
+      const el = $('t_password'); const isPw = el.type==='password'; el.type = isPw?'text':'password';
+      const icon = $('t_togglePw').querySelector('i'); if(icon){ icon.setAttribute('data-feather', isPw?'eye-off':'eye'); feather.replace(); }
+    });
 
     // DoB max = today
-    (() => {
-      const d = $('dob');
-      if (d) d.max = new Date().toISOString().slice(0,10);
+    (()=>{
+      const d1=$('c_dob'), d2=$('t_dob');
+      const today = new Date().toISOString().slice(0,10);
+      if(d1) d1.max=today; if(d2) d2.max=today;
     })();
 
-    // Eye toggle
-    const togglePwBtn = $('togglePw');
-    togglePwBtn.addEventListener('click', () => {
-      const pw = $('password');
-      const isPassword = pw.type === 'password';
-      pw.type = isPassword ? 'text' : 'password';
-      togglePwBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
-      const icon = isPassword ? 'eye-off' : 'eye';
-      togglePwBtn.querySelector('i').setAttribute('data-feather', icon);
-      feather.replace();
-    });
-
-    // Live sanitizers
-    $('phone').addEventListener('input', (e) => {
-      let v = e.target.value;
-      v = v.replace(/[^\d+\s-]/g, '').replace(/(?!^)\+/g, '');
-      e.target.value = v;
-    });
-    $('fullName').addEventListener('input', (e) => {
-      e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF\s]/g, '');
-    });
-    $('languages').addEventListener('input', (e) => {
-      e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF,\s]/g, '');
-    });
-
-    function syncPasswordMatch(){
-      const p1 = $('password').value;
-      const p2 = $('password2');
-      if (p2.value && p1 !== p2.value) p2.setCustomValidity('Passwords do not match.');
-      else p2.setCustomValidity('');
-    }
-    $('password').addEventListener('input', syncPasswordMatch);
-    $('password2').addEventListener('input', syncPasswordMatch);
-
-    // Days segmented control
-    const buttons = document.querySelectorAll('.day-btn');
-    const daysField = $('days');
-    const daysHint = $('daysHint');
-    function setActive(value) {
-      buttons.forEach(btn => {
-        const active = btn.dataset.value === value;
-        btn.classList.toggle('btn-accent', active);
-        btn.classList.toggle('btn-ghost', !active);
-      });
-      daysField.value = value;
-      daysHint.textContent = `Selected: ${value} day${value === '1' ? '' : 's'}/week`;
-    }
-    buttons.forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.value)));
-    setActive('4');
-
-    // If already signed in (fresh visit) and not just-signed-up, go to dashboard
-    onAuthStateChanged(auth, async (u) => {
-      if (!u) return;
-      try { await reload(u); } catch {}
-      if (sessionStorage.getItem(JUST_KEY) === '1') return; // let the overlay flow handle redirect
-      window.location.replace('index.html');
-    });
-
-    // Submit
-    document.getElementById('signupForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      ['email','fullName','phone','languages','extra'].forEach(id => {
-        const el = $(id); if (el && typeof el.value === 'string') el.value = el.value.trim();
-      });
-
-      syncPasswordMatch();
-      if (!e.target.checkValidity()) {
-        e.target.reportValidity();
-        showError('Please fix the highlighted fields.');
-        return;
-      }
-
-      const email = $('email').value;
-      const password = $('password').value;
-      const password2 = $('password2').value;
-      const fullName = $('fullName').value;
-      const phone = $('phone').value;
-      const height = Number($('height').value || 0);
-      const weight = Number($('weight').value || 0);
-      const dob = $('dob').value;
-      const country = $('country').value.trim();
-      const languages = $('languages').value.trim();
-      const where = (document.querySelector('input[name="where"]:checked') || {}).value || 'home';
-      const days = Number($('days').value || 4);
-      const extra = $('extra').value.trim();
-      const photoFile = $('photo').files[0];
-
-      if (password !== password2) { showError('Passwords do not match.'); return; }
-      if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
-
+    // If already signed-in, route by Firestore role
+    async function fetchUserRole(uid){
       try{
-        setLoading(true);
+        const snap = await getDoc(doc(db,'users',uid));
+        if (snap.exists()){
+          const data = snap.data()||{};
+          const r = Array.isArray(data.roles) ? String(data.roles[0]||'client').toLowerCase()
+                                              : String(data.role||'client').toLowerCase();
+          return (r==='trainer') ? 'trainer' : 'client';
+        }
+      }catch(_){}
+      return 'client';
+    }
+    function routeFor(role){ return role==='trainer' ? 'trainer-dashboard.html' : 'client-dashboard.html'; }
 
-        // 1) Create the account
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
+    onAuthStateChanged(auth, async (u)=>{
+      if (!u) return;
+      try{ await reload(u);}catch{}
+      if (sessionStorage.getItem(JUST_CLIENT)==='1' || sessionStorage.getItem(JUST_TRAINER)==='1') return;
+      const role = await fetchUserRole(u.uid);
+      window.location.replace(routeFor(role));
+    });
+
+    // Overlay helpers
+    function showOverlay(role){
+      const overlay = $('welcomeOverlay');
+      const msg = $('welcomeMsg');
+      msg.textContent = role==='trainer' ? 'We’re setting up your trainer dashboard…' : 'We’re setting up your dashboard…';
+      overlay.style.display = 'flex';
+    }
+    function hideOverlay(){
+      const overlay = $('welcomeOverlay');
+      overlay.style.display = 'none';
+    }
+
+    // =========== CLIENT SUBMIT ===========
+    $('c_createBtn').addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const form = $('clientForm');
+
+      // Basic validity
+      if (!form.checkValidity()){ form.reportValidity(); $('c_status').textContent='Please fix the highlighted fields.'; $('c_status').style.color='#ff6b6b'; return; }
+
+      const email = $('c_email').value.trim();
+      const p1 = $('c_password').value;
+      const p2 = $('c_password2').value;
+      if (p1 !== p2){ $('c_status').textContent='Passwords do not match.'; $('c_status').style.color='#ff6b6b'; return; }
+      if (p1.length < 6){ $('c_status').textContent='Password must be at least 6 characters.'; $('c_status').style.color='#ff6b6b'; return; }
+
+      const fullName = $('c_fullName').value.trim();
+      const phone = $('c_phone').value.trim();
+      const height = Number($('c_height').value || 0);
+      const weight = Number($('c_weight').value || 0);
+      const dob = $('c_dob').value;
+      const country = $('c_country').value.trim();
+      const languages = $('c_languages').value.trim();
+      const where = (document.querySelector('input[name="c_where"]:checked')||{}).value || 'home';
+      const days = Number($('c_days').value || 4);
+      const extra = $('c_extra').value.trim();
+      const photoFile = $('c_photo').files[0];
+
+      const btn = $('c_createBtn'); const statusEl = $('c_status');
+      try{
+        btn.disabled = true; btn.style.opacity = .7;
+        statusEl.textContent='Creating account…'; statusEl.style.color='var(--muted)';
+
+        // 1) Create
+        const cred = await createUserWithEmailAndPassword(auth, email, p1);
         const uid = cred.user.uid;
 
-        // 2) Immediately set the JUST flag and show overlay
-        sessionStorage.setItem(JUST_KEY, '1');
-        const overlay = document.getElementById('welcomeOverlay');
-        overlay.style.display = 'flex';
-
-        // 3) Proceed with profile photo + profile doc
+        // 2) Photo + profile
         let photoURL = '';
-        if (photoFile) {
-          if (photoFile.size > 5 * 1024 * 1024) throw new Error('Image too large (max 5 MB).');
-          const key = `users/${uid}/profile.jpg`;
-          const r = ref(storage, key);
+        if (photoFile){
+          if (photoFile.size > 5*1024*1024) throw new Error('Image too large (max 5 MB).');
+          const r = ref(storage, `users/${uid}/profile.jpg`);
           await uploadBytes(r, photoFile, { contentType: photoFile.type || 'image/jpeg' });
           photoURL = await getDownloadURL(r);
           await updateProfile(cred.user, { displayName: fullName || '', photoURL });
-        } else {
+        }else{
           await updateProfile(cred.user, { displayName: fullName || '' });
         }
 
-        await setDoc(doc(db, 'users', uid), {
-          role: 'client',
+        // 3) Firestore
+        await setDoc(doc(db,'users',uid), {
+          role:'client', roles:['client'],
           email, fullName, phone, height, weight, dateOfBirth: dob, country,
-          languages: languages ? languages.split(',').map(s=>s.trim()).filter(Boolean) : [],
-          trainingPlace: where,
-          daysPerWeek: days,
-          additionalInfo: extra,
-          photoURL,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
+          languages: splitCSV(languages),
+          trainingPlace: where, daysPerWeek: days, additionalInfo: extra,
+          photoURL, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+        }, { merge:true });
 
-        // 4) Short, friendly pause then go to dashboard
-        setTimeout(() => {
-          sessionStorage.removeItem(JUST_KEY);
-          window.location.replace('index.html');
-        }, 1400);
-
+        // 4) Overlay + redirect
+        sessionStorage.setItem(JUST_CLIENT,'1');
+        showOverlay('client');
+        setTimeout(()=>{
+          sessionStorage.removeItem(JUST_CLIENT);
+          window.location.replace('client-dashboard.html');
+        }, 1200);
       }catch(err){
         console.error(err);
-        // hide overlay + clear flag on error so user can retry
-        try { sessionStorage.removeItem(JUST_KEY); } catch {}
-        const overlay = document.getElementById('welcomeOverlay');
-        if (overlay) overlay.style.display = 'none';
-        showError(prettyAuthError(err));
+        statusEl.textContent = err?.message || 'Sign up failed. Please try again.';
+        statusEl.style.color = '#ff6b6b';
+        hideOverlay();
       }finally{
-        setLoading(false);
+        btn.disabled = false; btn.style.opacity = 1;
       }
     });
 
-    function prettyAuthError(err){
-      const code = String(err?.code || '');
-      if (code.startsWith('auth/')) {
-        switch (code) {
-          case 'auth/email-already-in-use': return 'Email is already registered.';
-          case 'auth/invalid-email': return 'Invalid email address.';
-          case 'auth/operation-not-allowed': return 'Email/password sign-in is disabled.';
-          case 'auth/weak-password': return 'Password is too weak.';
-          default: return err.message || 'Sign up failed. Please try again.';
+    // =========== TRAINER SUBMIT ===========
+    $('t_createBtn').addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const form = $('trainerForm');
+
+      if (!form.checkValidity()){ form.reportValidity(); $('t_status').textContent='Please fix the highlighted fields.'; $('t_status').style.color='#ff6b6b'; return; }
+
+      const email = $('t_email').value.trim();
+      const p1 = $('t_password').value;
+      const p2 = $('t_password2').value;
+      if (p1 !== p2){ $('t_status').textContent='Passwords do not match.'; $('t_status').style.color='#ff6b6b'; return; }
+      if (p1.length < 6){ $('t_status').textContent='Password must be at least 6 characters.'; $('t_status').style.color='#ff6b6b'; return; }
+
+      const fullName   = $('t_fullName').value.trim();
+      const phone      = $('t_phone').value.trim();
+      const country    = $('t_country').value;
+      const languages  = $('t_languages').value.trim();
+      const org        = $('t_org').value.trim();
+      const years      = Number($('t_years').value || 0);
+      const accepting  = $('t_accepting').value === 'yes';
+      const specialties= $('t_specialties').value.trim();
+      const certs      = $('t_certs').value.trim();
+      const bio        = $('t_bio').value.trim();
+      const social     = $('t_social').value.trim();
+      const trainerCode= $('t_trainerCode').value.trim();
+      const dob        = $('t_dob').value;
+      const photoFile  = $('t_photo').files[0];
+
+      const btn = $('t_createBtn'); const statusEl = $('t_status');
+      try{
+        btn.disabled = true; btn.style.opacity = .7;
+        statusEl.textContent='Creating trainer account…'; statusEl.style.color='var(--muted)';
+
+        // 1) Auth
+        const cred = await createUserWithEmailAndPassword(auth, email, p1);
+        const uid = cred.user.uid;
+
+        // 2) Photo
+        let photoURL = '';
+        if (photoFile){
+          if (photoFile.size > 5*1024*1024) throw new Error('Image too large (max 5 MB).');
+          const r = ref(storage, `users/${uid}/profile.jpg`);
+          await uploadBytes(r, photoFile, { contentType: photoFile.type || 'image/jpeg' });
+          photoURL = await getDownloadURL(r);
         }
+
+        // 3) Update auth profile
+        await updateProfile(cred.user, { displayName: fullName, photoURL: photoURL || null });
+
+        // 4) Firestore
+        await setDoc(doc(db,'users',uid), {
+          role:'trainer', roles:['trainer'],
+          email, fullName, phone, country, dateOfBirth: dob,
+          languages: splitCSV(languages),
+          organization: org, yearsExperience: years, acceptingNewClients: accepting,
+          specialties: splitCSV(specialties), certifications: splitCSV(certs),
+          bio, social: social || '', trainerCode: trainerCode || '',
+          photoURL: photoURL || '',
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+        }, { merge:true });
+
+        // 5) Overlay + redirect
+        sessionStorage.setItem(JUST_TRAINER,'1');
+        showOverlay('trainer');
+        setTimeout(()=>{
+          sessionStorage.removeItem(JUST_TRAINER);
+          window.location.replace('trainer-dashboard.html');
+        }, 1200);
+      }catch(err){
+        console.error(err);
+        statusEl.textContent = err?.message || 'Sign up failed. Please try again.';
+        statusEl.style.color = '#ff6b6b';
+        hideOverlay();
+      }finally{
+        btn.disabled = false; btn.style.opacity = 1;
       }
-      if (code.includes('permission-denied')) return 'You don’t have permission to save your profile.';
-      return err.message || 'Something went wrong. Please try again.';
-    }
+    });
 
     // Flatpickr (optional)
     window.addEventListener('DOMContentLoaded', () => {
       if (window.flatpickr) {
-        flatpickr("#dob", {
-          dateFormat: "Y-m-d",
-          minDate: "1900-01-01",
-          maxDate: "today",
-          allowInput: true,
-          disableMobile: true
-        });
+        flatpickr("#c_dob", { dateFormat: "Y-m-d", minDate: "1900-01-01", maxDate: "today", allowInput: true, disableMobile: true });
+        flatpickr("#t_dob", { dateFormat: "Y-m-d", minDate: "1900-01-01", maxDate: "today", allowInput: true, disableMobile: true });
       }
     });
   </script>
