@@ -103,7 +103,7 @@
       getAuth, setPersistence,
       browserLocalPersistence, browserSessionPersistence,
       signInWithEmailAndPassword, sendPasswordResetEmail,
-      onAuthStateChanged, reload
+      onAuthStateChanged, reload, signOut
     } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
     import {
       getFirestore, doc, getDoc
@@ -163,7 +163,6 @@
       return role === 'trainer' ? (next || 'trainer-dashboard.html') : (next || 'index.html');
     }
 
-    // NEW: remember role for AuthGuard fallback (prevents trainer → index bounce)
     function rememberRole(role){
       try {
         if (!role) return;
@@ -172,22 +171,30 @@
       } catch {}
     }
 
-    // Firestore is the source of truth; if no doc, fall back to chosenRole just for routing.
     async function fetchUserRole(uid, fallbackRole) {
       try {
         const snap = await getDoc(doc(db, 'users', uid));
         if (snap.exists()) {
           const data = snap.data() || {};
+          // Accept either role: "client"/"trainer" or roles: ["client", ...]
           const stored = Array.isArray(data.roles)
             ? String(data.roles[0] || 'client').toLowerCase()
             : String(data.role || 'client').toLowerCase();
-          return stored;
+          return stored === 'trainer' ? 'trainer' : 'client';
         }
         console.warn('[Login] No /users doc for uid; using selected tab as fallback:', fallbackRole);
       } catch (e) {
         console.warn('[Login] getDoc failed, using fallback role:', e);
       }
       return (fallbackRole || 'client').toLowerCase();
+    }
+
+    function showRoleMismatchError(selected, actual){
+      const want = selected === 'trainer' ? 'Trainer' : 'Client';
+      const have = actual   === 'trainer' ? 'Trainer' : 'Client';
+      statusEl.style.color = '#ff6b6b';
+      statusEl.textContent =
+        `This account is ${have}. Switch the toggle to ${have} or register a new ${want} account.`;
     }
 
     // ---- Password eye toggle ----
@@ -213,7 +220,7 @@
       }
     });
 
-    // ---- Login submit ----
+    // ---- Login submit (STRICT role enforcement) ----
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = emailEl.value.trim();
@@ -229,12 +236,24 @@
           ? browserLocalPersistence
           : browserSessionPersistence);
 
+        // 1) Sign in
         const cred = await signInWithEmailAndPassword(auth, email, pass);
 
-        // Route by Firestore role; if none, fall back to selected tab
-        const role = await fetchUserRole(cred.user.uid, chosenRole);
-        rememberRole(role);           // <-- NEW: cache it for AuthGuard
-        location.replace(routeFor(role));
+        // 2) Get Firestore role (source of truth)
+        const actualRole = await fetchUserRole(cred.user.uid, 'client');
+
+        // 3) STRICT MATCH: selected toggle must equal Firestore role
+        if (actualRole !== chosenRole) {
+          // Block, message, and sign out
+          showRoleMismatchError(chosenRole, actualRole);
+          try { await signOut(auth); } catch {}
+          return;
+        }
+
+        // 4) Proceed to the correct area
+        rememberRole(actualRole);
+        location.replace(routeFor(actualRole));
+
       } catch (e) {
         console.error('[Auth] signIn failed:', e.code, e.message);
         statusEl.textContent = friendlyAuthError(e);
@@ -244,13 +263,13 @@
       }
     });
 
-    // ---- Already signed-in case (e.g., back button)
+    // ---- Already signed-in case: send to correct dashboard by Firestore role
     onAuthStateChanged(auth, async (u) => {
       if (!u) return;
       try { await reload(u); } catch {}
-      const role = await fetchUserRole(u.uid, chosenRole);
-      rememberRole(role);             // <-- NEW: cache it here too
-      location.replace(routeFor(role));
+      const actualRole = await fetchUserRole(u.uid, 'client');
+      rememberRole(actualRole);
+      location.replace(routeFor(actualRole));
     });
   </script>
 </body>
