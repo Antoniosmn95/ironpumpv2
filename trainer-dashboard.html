@@ -8,24 +8,15 @@
   <!-- Firebase + Auth Guard (modular app + guard) -->
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="auth-guard.js"></script>
-  <!-- 🔌 Logout wiring (uses AuthGuard.signOut with fallback) -->
-  <script type="module" src="logout.js"></script>
+  <!-- 🔌 You can remove logout.js and use AuthGuard.signOut; leaving it out now -->
 
   <!-- Tailwind + Feather -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase compat (for your current Firestore/Storage calls) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-storage-compat.js"></script>
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    :root{
-      --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2;
-    }
+    :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
     html,body{height:100%}
     body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
     .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
@@ -50,7 +41,7 @@
   <header class="panel p-4">
     <div class="container mx-auto flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <a href="index.html" class="p-2 rounded-full hover:bg-[#1e1e1e]" title="Client App">
+        <a href="client-dashboard.html" class="p-2 rounded-full hover:bg-[#1e1e1e]" title="Client App">
           <i data-feather="arrow-left" class="accent-text"></i>
         </a>
         <h1 class="text-xl font-bold">
@@ -61,7 +52,8 @@
 
       <!-- Right: user chip -->
       <div class="flex items-center gap-3">
-        <a href="signup-trainer.html" class="btn-ghost px-3 py-2 rounded-lg hidden" id="completeProfileBtn">
+        <!-- Trainers should not go to signup; point to a profile page instead -->
+        <a href="profile-trainer.html" class="btn-ghost px-3 py-2 rounded-lg hidden" id="completeProfileBtn">
           Complete Profile
         </a>
 
@@ -71,8 +63,7 @@
             <p id="welcomeName" class="text-sm font-semibold">Welcome</p>
             <p id="welcomeEmail" class="text-xs text-muted"></p>
           </div>
-          <!-- 🔒 No inline JS needed; logout.js will wire this via data-action -->
-          <button id="signOutBtn" data-action="signout" class="ml-2 px-3 py-2 rounded-lg btn-ghost text-sm">
+          <button id="signOutBtn" class="ml-2 px-3 py-2 rounded-lg btn-ghost text-sm">
             <i data-feather="log-out" class="inline mr-1"></i> Sign Out
           </button>
         </div>
@@ -193,18 +184,31 @@
     </div>
   </div>
 
-  <script>
-    // ===== Guard: trainer only =====
-    AuthGuard.init();
-    AuthGuard.requireRole('trainer'); // non-trainers redirected to login with ?next=trainer-dashboard.html
+  <!-- Page logic (modular SDK) -->
+  <script type="module">
+    // Ensure trainer access
+    await window.AuthGuard?.requireRole?.('trainer');
 
-    const db = firebase.firestore();
-    let currentUser = null;
-    let trainerProfile = null;
-    let clientsCache = [];
+    import {
+      getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, limit,
+      setDoc, deleteField
+    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+    import { auth, db as exportedDb } from "./firebase-init.js";
+
+    const db = exportedDb || getFirestore();
 
     const el = (id)=>document.getElementById(id);
+    feather.replace();
+
+    // Header UI
     const trainerNameEl = el('trainerName');
+    const userChip   = el('userChip');
+    const userAvatar = el('userAvatar');
+    const welcomeName= el('welcomeName');
+    const welcomeEmail = el('welcomeEmail');
+    const signOutBtn = el('signOutBtn');
+
+    // KPIs & lists
     const kpiClientsEl  = el('kpiClients');
     const kpiActiveEl   = el('kpiActive');
     const kpiSessionsEl = el('kpiSessions');
@@ -215,7 +219,9 @@
     const addClientMsg  = el('addClientMsg');
     const searchInput   = el('searchInput');
     const emptyCta      = el('emptyCta');
+    const completeProfileBtn = el('completeProfileBtn');
 
+    // Modal elements
     const clientModal   = el('clientModal');
     const closeClientModal = el('closeClientModal');
     const closeClientModal2= el('closeClientModal2');
@@ -225,13 +231,13 @@
     const openEmailLink = el('openEmail');
     const unlinkClientBtn = el('unlinkClientBtn');
 
-    const userChip   = el('userChip');
-    const userAvatar = el('userAvatar');
-    const welcomeName= el('welcomeName');
-    const welcomeEmail = el('welcomeEmail');
-    // NOTE: no JS wiring here for signOutBtn — logout.js handles it by data-action="signout"
-
-    feather.replace();
+    // Sign out wiring
+    signOutBtn?.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      signOutBtn.disabled = true;
+      try { await window.AuthGuard?.signOut?.(); }
+      catch (err) { console.error(err); signOutBtn.disabled = false; alert('Could not sign out.'); }
+    });
 
     function svgInitials(nameOrEmail){
       const txt = (String(nameOrEmail||'User').match(/\b\w/g)||['U','S']).slice(0,2).join('').toUpperCase();
@@ -243,18 +249,22 @@
       return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
     }
 
-    // Load signed-in trainer + profile
-    AuthGuard.onAuth(async (user)=>{
-      currentUser = user;
-      if(!user) return;
+    // Current user + profile
+    let currentUser = null;
+    let trainerProfile = null;
+    let clientsCache = [];
 
-      trainerProfile = await AuthGuard.getProfile();
+    window.AuthGuard?.onAuth?.(async (user)=>{
+      if (!user) return;
+      currentUser = user;
+      trainerProfile = await window.AuthGuard.getProfile();
+
       const displayName = trainerProfile?.fullName || user.displayName || '';
       const email = trainerProfile?.email || user.email || '';
       const photoURL = trainerProfile?.photoURL || user.photoURL || '';
 
       trainerNameEl.textContent = displayName ? `Hi, ${displayName}` : '';
-      if(!trainerProfile?.fullName) el('completeProfileBtn').classList.remove('hidden');
+      if(!trainerProfile?.fullName) completeProfileBtn.classList.remove('hidden');
 
       welcomeName.textContent = displayName ? `Welcome ${displayName}` : 'Welcome';
       welcomeEmail.textContent = email || '';
@@ -267,18 +277,32 @@
       feather.replace();
     });
 
+    // ------- Helpers to query Firestore (modular) -------
+    const usersCol = collection(db, 'users');
+
+    async function getTrainerClientsSnapshot(uid){
+      const qClients = query(
+        usersCol,
+        where('role','==','client'),
+        where('trainerId','==', uid),
+        orderBy('fullName','asc')
+      );
+      return await getDocs(qClients);
+    }
+
+    async function getWorkoutLogsForClientSince(clientId, isoDate){
+      const daysCol = collection(doc(db, 'workout_logs', clientId), 'days');
+      const qLogs = query(daysCol, where('date','>=', isoDate), orderBy('date','desc'));
+      return await getDocs(qLogs);
+    }
+
     // ------- KPIs -------
     async function loadKPIs(){
       if(!currentUser) return;
 
-      // Total clients
-      const clientsSnap = await db.collection('users')
-        .where('role','==','client')
-        .where('trainerId','==', currentUser.uid)
-        .get();
+      const clientsSnap = await getTrainerClientsSnapshot(currentUser.uid);
       kpiClientsEl.textContent = clientsSnap.size;
 
-      // Sessions 30d + active this week
       const since30 = new Date(); since30.setDate(since30.getDate()-30);
       const since7  = new Date(); since7.setDate(since7.getDate()-7);
       const iso30 = since30.toISOString().slice(0,10);
@@ -289,10 +313,8 @@
 
       const clientIds = clientsSnap.docs.map(d=>d.id);
       for (const cid of clientIds) {
-        const logsRef = db.collection('workout_logs').doc(cid).collection('days');
-        const recentSnap = await logsRef.where('date','>=', iso30).orderBy('date','desc').get();
+        const recentSnap = await getWorkoutLogsForClientSince(cid, iso30);
         totalSessions += recentSnap.size;
-
         const hadWeek = recentSnap.docs.some(doc => (doc.data().date || '') >= iso7);
         if (hadWeek) activeThisWeek++;
       }
@@ -307,13 +329,10 @@
     async function loadClients(){
       if(!currentUser) return;
       clientsListEl.innerHTML = `<div class="text-muted text-sm p-4">Loading clients…</div>`;
-      const qs = await db.collection('users')
-        .where('role','==','client')
-        .where('trainerId','==', currentUser.uid)
-        .orderBy('fullName','asc')
-        .get();
 
+      const qs = await getTrainerClientsSnapshot(currentUser.uid);
       clientsCache = qs.docs.map(d=>({ id:d.id, ...d.data() }));
+
       renderClients(clientsCache);
       if (qs.empty) emptyCta.classList.remove('hidden');
     }
@@ -340,12 +359,16 @@
             </div>
             <div class="flex items-center gap-2">
               ${c.daysPerWeek ? `<span class="pill">${c.daysPerWeek} d/wk</span>`:''}
-              <button class="btn-ghost px-3 py-2 rounded-lg" onclick='openClient("${c.id}")'>
+              <button class="btn-ghost px-3 py-2 rounded-lg" data-open-client="${c.id}">
                 <i data-feather="eye" class="inline mr-1"></i> View
               </button>
             </div>
           </div>`;
       }).join('');
+      // delegate click
+      clientsListEl.querySelectorAll('[data-open-client]').forEach(btn=>{
+        btn.addEventListener('click', ()=> openClient(btn.getAttribute('data-open-client')));
+      });
       feather.replace();
     }
 
@@ -366,14 +389,15 @@
       if(!email) return;
 
       try{
-        const snap = await db.collection('users').where('email','==',email).limit(1).get();
+        const qByEmail = query(usersCol, where('email','==', email), limit(1));
+        const snap = await getDocs(qByEmail);
         if(snap.empty){
           addClientMsg.className = 'text-sm text-red-400';
           addClientMsg.textContent = 'No user with that email. Ask them to sign up first.';
           return;
         }
         const userDoc = snap.docs[0];
-        await db.collection('users').doc(userDoc.id).set({ trainerId: currentUser.uid }, { merge:true });
+        await setDoc(doc(db,'users',userDoc.id), { trainerId: currentUser.uid }, { merge:true });
 
         addClientMsg.className = 'text-sm text-green-400';
         addClientMsg.textContent = 'Client linked!';
@@ -390,11 +414,12 @@
     // ------- Pending join requests -------
     async function loadPending(){
       if(!currentUser) return;
-      const qs = await db.collection('join_requests')
-        .where('trainerId','==', currentUser.uid)
-        .where('status','==','pending')
-        .orderBy('createdAt','desc')
-        .get();
+      const qs = await getDocs(query(
+        collection(db,'join_requests'),
+        where('trainerId','==', currentUser.uid),
+        where('status','==','pending'),
+        orderBy('createdAt','desc')
+      ));
 
       kpiPendingEl.textContent = qs.size;
 
@@ -412,19 +437,25 @@
               <div class="text-xs text-muted">${r.clientEmail || ''}</div>
             </div>
             <div class="flex gap-2">
-              <button class="btn-accent px-3 py-1 rounded-lg text-sm" onclick='approveReq("${d.id}","${r.clientUid||''}")'>Approve</button>
-              <button class="btn-ghost px-3 py-1 rounded-lg text-sm" onclick='rejectReq("${d.id}")'>Reject</button>
+              <button class="btn-accent px-3 py-1 rounded-lg text-sm" data-approve="${d.id}" data-client="${r.clientUid||''}">Approve</button>
+              <button class="btn-ghost px-3 py-1 rounded-lg text-sm" data-reject="${d.id}">Reject</button>
             </div>
           </div>`;
       }).join('');
+
+      pendingListEl.querySelectorAll('[data-approve]').forEach(btn=>{
+        btn.addEventListener('click', ()=> approveReq(btn.getAttribute('data-approve'), btn.getAttribute('data-client')));
+      });
+      pendingListEl.querySelectorAll('[data-reject]').forEach(btn=>{
+        btn.addEventListener('click', ()=> rejectReq(btn.getAttribute('data-reject')));
+      });
     }
 
     async function approveReq(reqId, clientUid){
       try{
-        const reqRef = db.collection('join_requests').doc(reqId);
-        await reqRef.set({ status:'approved' },{merge:true});
+        await setDoc(doc(db,'join_requests', reqId), { status:'approved' }, { merge:true });
         if(clientUid){
-          await db.collection('users').doc(clientUid).set({ trainerId: currentUser.uid },{merge:true});
+          await setDoc(doc(db,'users', clientUid), { trainerId: currentUser.uid }, { merge:true });
         }
         await loadPending();
         await loadClients();
@@ -433,20 +464,20 @@
     }
     async function rejectReq(reqId){
       try{
-        await db.collection('join_requests').doc(reqId).set({ status:'rejected' },{merge:true});
+        await setDoc(doc(db,'join_requests', reqId), { status:'rejected' }, { merge:true });
         await loadPending();
       }catch(e){ alert('Error: '+e.message); }
     }
 
     // ------- Client modal -------
-    window.openClient = async function(uid){
-      const docSnap = await db.collection('users').doc(uid).get();
-      if(!docSnap.exists){ alert('Client not found'); return; }
+    async function openClient(uid){
+      const docSnap = await getDoc(doc(db,'users', uid));
+      if(!docSnap.exists()){ alert('Client not found'); return; }
       const c = { id: uid, ...docSnap.data() };
 
       const avatar = c.photoURL || ('https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57');
 
-      // Support both old and new field names
+      // Support old/new field names
       const age = c.age ?? '—';
       const weight = c.weightKg ?? c.weight ?? '—';
       const height = c.heightCm ?? c.height ?? '—';
@@ -473,8 +504,11 @@
       `;
 
       // logs: workout_logs/{uid}/days ordered by date desc
-      const logsSnap = await db.collection('workout_logs').doc(uid).collection('days')
-        .orderBy('date','desc').limit(10).get();
+      const logsSnap = await getDocs(query(
+        collection(doc(db,'workout_logs', uid), 'days'),
+        orderBy('date','desc'),
+        limit(10)
+      ));
 
       if (logsSnap.empty){
         clientLogs.innerHTML = `<div class="text-muted text-sm">No logs yet.</div>`;
@@ -495,11 +529,11 @@
         }).join('');
       }
 
-      // action links
+      // actions
       openEmailLink.href = c.email ? `mailto:${encodeURIComponent(c.email)}` : '#';
       unlinkClientBtn.onclick = async ()=>{
         if(!confirm('Unlink this client from you?')) return;
-        await db.collection('users').doc(uid).set({ trainerId: firebase.firestore.FieldValue.delete() },{merge:true});
+        await setDoc(doc(db,'users', uid), { trainerId: deleteField() }, { merge:true });
         clientModal.classList.add('hidden');
         await loadClients();
         await loadKPIs();
@@ -508,6 +542,7 @@
       clientModal.classList.remove('hidden');
       feather.replace();
     }
+    window.openClient = openClient; // for safety if something still calls it globally
 
     [closeClientModal, closeClientModal2].forEach(b=> b.addEventListener('click', ()=> clientModal.classList.add('hidden')));
     clientModal.addEventListener('click', (e)=>{ if(e.target===clientModal) clientModal.classList.add('hidden'); });
