@@ -405,10 +405,16 @@
       try{
         setLoading(true);
 
+        // 1) Create the account
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
 
-        // Photo upload (optional)
+        // 2) Immediately set the JUST flag and show overlay
+        sessionStorage.setItem(JUST_KEY, '1');
+        const overlay = document.getElementById('welcomeOverlay');
+        overlay.style.display = 'flex';
+
+        // 3) Proceed with profile photo + profile doc
         let photoURL = '';
         if (photoFile) {
           if (photoFile.size > 5 * 1024 * 1024) throw new Error('Image too large (max 5 MB).');
@@ -421,7 +427,6 @@
           await updateProfile(cred.user, { displayName: fullName || '' });
         }
 
-        // Save /users/{uid} with role=client
         await setDoc(doc(db, 'users', uid), {
           role: 'client',
           email, fullName, phone, height, weight, dateOfBirth: dob, country,
@@ -434,17 +439,18 @@
           updatedAt: serverTimestamp()
         }, { merge: true });
 
-        // Show welcome overlay and redirect shortly
-        sessionStorage.setItem(JUST_KEY, '1');
-        const overlay = document.getElementById('welcomeOverlay');
-        overlay.style.display = 'flex';
+        // 4) Short, friendly pause then go to dashboard
         setTimeout(() => {
           sessionStorage.removeItem(JUST_KEY);
           window.location.replace('index.html');
-        }, 1400); // feel free to tweak duration
+        }, 1400);
 
       }catch(err){
         console.error(err);
+        // hide overlay + clear flag on error so user can retry
+        try { sessionStorage.removeItem(JUST_KEY); } catch {}
+        const overlay = document.getElementById('welcomeOverlay');
+        if (overlay) overlay.style.display = 'none';
         showError(prettyAuthError(err));
       }finally{
         setLoading(false);
