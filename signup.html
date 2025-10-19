@@ -9,8 +9,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase init -->
+  <!-- Firebase init + AuthGuard (needed for overlay hold & bouncing) -->
   <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="auth-guard.js"></script>
 
   <!-- Flatpickr (optional) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -103,8 +104,8 @@
 <body class="min-h-[100svh] flex items-start justify-center p-3 md:p-4">
   <main class="w-full max-w-[960px]">
     <div class="mb-3 text-center">
-      <!-- Logo above header (as asked) -->
-      <img src="ironpum.png" alt="IronPump" style="width:72px;height:72px;object-fit:contain;margin:0 auto 8px;border-radius:.75rem;border:1px solid rgba(144,144,144,.35);background:#111">
+      <!-- Fixed logo filename -->
+      <img src="ironpump.png" alt="IronPump" style="width:72px;height:72px;object-fit:contain;margin:0 auto 8px;border-radius:.75rem;border:1px solid rgba(144,144,144,.35);background:#111">
       <h1 class="title font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
       <p class="text-xs text-muted mt-1">Create your account</p>
     </div>
@@ -389,7 +390,6 @@
     const JUST_CLIENT  = 'ironpump_client_justSignedUp';
     const JUST_TRAINER = 'ironpump_trainer_justSignedUp';
 
-    // DOM helpers
     const $ = (id) => document.getElementById(id);
 
     // Role toggle
@@ -398,8 +398,7 @@
     const clientForm = $('clientForm');
     const trainerForm= $('trainerForm');
     const roleHint   = $('roleHint');
-
-    let currentRole = 'client'; // default
+    let currentRole = 'client';
 
     function setRole(role){
       currentRole = role;
@@ -414,9 +413,9 @@
     tabTrainer.addEventListener('click', () => setRole('trainer'));
     setRole('client');
 
-    // Shared utils
+    // Utils
     function splitCSV(v){ return v ? v.split(',').map(s=>s.trim()).filter(Boolean) : []; }
-    function daysUI(selector, hiddenId, hintId, defaultVal='4'){
+    function daysUI(selector, hiddenId, hintId, def='4'){
       const btns = document.querySelectorAll(selector);
       const hidden = $(hiddenId);
       const hint = $(hintId);
@@ -430,7 +429,7 @@
         hint.textContent = `Selected: ${val} day${val==='1'?'':'s'}/week`;
       }
       btns.forEach(b => b.addEventListener('click', ()=> setActive(b.dataset.value)));
-      setActive(defaultVal);
+      setActive(def);
     }
     daysUI('.c-day', 'c_days', 'c_daysHint', '4');
 
@@ -444,8 +443,6 @@
       function sync(){ if(p2.value && p1.value!==p2.value) p2.setCustomValidity('Passwords do not match.'); else p2.setCustomValidity(''); }
       p1.addEventListener('input',sync); p2.addEventListener('input',sync);
     }
-
-    // Apply sanitizers / toggles
     cleanEmail($('c_email')); cleanEmail($('t_email'));
     onlyPhoneChars($('c_phone')); onlyPhoneChars($('t_phone'));
     onlyNameChars($('c_fullName')); onlyNameChars($('t_fullName'));
@@ -462,11 +459,7 @@
     });
 
     // DoB max = today
-    (()=>{
-      const d1=$('c_dob'), d2=$('t_dob');
-      const today = new Date().toISOString().slice(0,10);
-      if(d1) d1.max=today; if(d2) d2.max=today;
-    })();
+    (()=>{ const today = new Date().toISOString().slice(0,10); const d1=$('c_dob'), d2=$('t_dob'); if(d1) d1.max=today; if(d2) d2.max=today; })();
 
     // If already signed-in, route by Firestore role
     async function fetchUserRole(uid){
@@ -498,17 +491,13 @@
       msg.textContent = role==='trainer' ? 'We’re setting up your trainer dashboard…' : 'We’re setting up your dashboard…';
       overlay.style.display = 'flex';
     }
-    function hideOverlay(){
-      const overlay = $('welcomeOverlay');
-      overlay.style.display = 'none';
-    }
+    function hideOverlay(){ $('welcomeOverlay').style.display = 'none'; }
 
     // =========== CLIENT SUBMIT ===========
     $('c_createBtn').addEventListener('click', async (e)=>{
       e.preventDefault();
       const form = $('clientForm');
 
-      // Basic validity
       if (!form.checkValidity()){ form.reportValidity(); $('c_status').textContent='Please fix the highlighted fields.'; $('c_status').style.color='#ff6b6b'; return; }
 
       const email = $('c_email').value.trim();
@@ -559,8 +548,15 @@
           photoURL, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
         }, { merge:true });
 
-        // 4) Overlay + redirect
+        // 3.5) Cache role for AuthGuard fallback
+        try {
+          sessionStorage.setItem('ironpump_lastRole','client');
+          localStorage.setItem('ironpump_lastRole','client');
+        } catch {}
+
+        // 4) Overlay + short hold + redirect
         sessionStorage.setItem(JUST_CLIENT,'1');
+        try { window.__IronpumpHoldRedirect?.set?.(1800); } catch {}
         showOverlay('client');
         setTimeout(()=>{
           sessionStorage.removeItem(JUST_CLIENT);
@@ -637,8 +633,15 @@
           createdAt: serverTimestamp(), updatedAt: serverTimestamp()
         }, { merge:true });
 
-        // 5) Overlay + redirect
+        // 4.5) Cache role for AuthGuard fallback
+        try {
+          sessionStorage.setItem('ironpump_lastRole','trainer');
+          localStorage.setItem('ironpump_lastRole','trainer');
+        } catch {}
+
+        // 5) Overlay + short hold + redirect
         sessionStorage.setItem(JUST_TRAINER,'1');
+        try { window.__IronpumpHoldRedirect?.set?.(1800); } catch {}
         showOverlay('trainer');
         setTimeout(()=>{
           sessionStorage.removeItem(JUST_TRAINER);
