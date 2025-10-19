@@ -29,15 +29,15 @@
     .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 0 12px rgba(151,251,87,.45), inset 0 0 0 1px rgba(18,18,18,.4);transition:filter .15s ease, transform .05s ease}
     .btn-accent:hover{filter:brightness(.95)}
     .btn-accent:active{transform:translateY(1px)}
-    .btn-ghost{ background:#232323; color:var(--light); border:1px solid rgba(144,144,144,.35); }
+    .btn-ghost{background:#232323;color:var(--light);border:1px solid rgba(144,144,144,.35)}
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
-    .seg { display:flex; background:#1b1b1b; border:1px solid rgba(144,144,144,.35); border-radius:9999px; padding:4px; gap:4px; }
-    .seg button { flex:1; padding:.5rem .75rem; border-radius:9999px; font-weight:600; color:var(--light); background:transparent; border:none; cursor:pointer; }
-    .seg button.active { background:var(--accent); color:var(--bg); box-shadow:0 0 10px rgba(151,251,87,.35) inset; }
-    .logo { width: 80px; height: auto; margin: 0 auto 10px; display:block; }
-    #status { color: var(--muted); min-height: 1.25rem; }
+    .seg{display:flex;background:#1b1b1b;border:1px solid rgba(144,144,144,.35);border-radius:9999px;padding:4px;gap:4px}
+    .seg button{flex:1;padding:.5rem .75rem;border-radius:9999px;font-weight:600;color:var(--light);background:transparent;border:none;cursor:pointer}
+    .seg button.active{background:var(--accent);color:var(--bg);box-shadow:0 0 10px rgba(151,251,87,.35) inset}
+    .logo{width:80px;height:auto;margin:0 auto 10px;display:block}
+    #status{color:var(--muted);min-height:1.25rem}
   </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -142,6 +142,13 @@
     const statusEl = $('status');
     const loginBtn = $('loginBtn');
 
+    // Keep email clean of spaces/newlines
+    (() => {
+      if (!emailEl) return;
+      emailEl.addEventListener('input', () => { emailEl.value = emailEl.value.replace(/\s+/g, ''); });
+      emailEl.addEventListener('blur',  () => { emailEl.value = emailEl.value.trim(); });
+    })();
+
     function friendlyAuthError(err){
       const code = String(err?.code || '');
       if (code.includes('invalid-credential')) return 'Email or password is incorrect.';
@@ -179,6 +186,8 @@
     // ---- Forgot password ----
     document.getElementById('forgotBtn').addEventListener('click', async () => {
       const email = emailEl.value.trim();
+      statusEl.style.color = 'var(--muted)';
+      statusEl.textContent = '';
       if (!email) { statusEl.textContent = 'Enter your email first.'; return; }
       try {
         await sendPasswordResetEmail(auth, email);
@@ -193,6 +202,8 @@
       e.preventDefault();
       const email = emailEl.value.trim();
       const pass  = pwEl.value;
+      statusEl.style.color = 'var(--muted)';
+      statusEl.textContent = '';
       if (!email || !pass) { statusEl.textContent = 'Please fill in email and password.'; return; }
 
       try {
@@ -203,7 +214,6 @@
           : browserSessionPersistence);
 
         const cred = await signInWithEmailAndPassword(auth, email, pass);
-        statusEl.textContent = '';
 
         // Route by stored role (no email verification checks)
         const role = await fetchUserRole(cred.user.uid);
