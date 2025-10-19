@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>IronPump - Gym Log</title>
 
+  <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
@@ -12,9 +13,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
-  <!-- Firebase (Compat) + your guarded init -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <!-- Your modular Firebase init -->
   <script type="module" src="firebase-init.js"></script>
 
   <style>
@@ -52,18 +51,17 @@
     <div class="container mx-auto flex justify-between items-center">
       <!-- Logo + Title -->
       <div class="flex items-center gap-3">
-        <!-- 1) ironpump.png icon -->
         <img src="ironpump.png" alt="IronPump" class="w-8 h-8 rounded-md object-contain" />
         <h1 class="text-2xl font-bold tracking-tight">
           <span class="accent-text">Iron</span>Pump
         </h1>
       </div>
 
-      <!-- Right cluster: Welcome + Profile + Calendar + View Trainers + User Menu -->
+      <!-- Right cluster -->
       <div class="flex items-center gap-2 relative">
         <span id="programName" class="hidden text-sm text-muted"></span>
 
-        <!-- 3) Welcome full name + avatar (before calendar) -->
+        <!-- Welcome full name + avatar (before calendar) -->
         <div id="welcomeWrap" class="hidden md:flex items-center gap-2 mr-1">
           <img id="userAvatar" src="" alt="Profile" class="w-8 h-8 rounded-full border border-[#2a2a2a] object-cover" />
           <div class="text-sm">
@@ -76,10 +74,11 @@
           <i data-feather="calendar" class="accent-text"></i>
         </button>
 
-        <!-- 4) View Trainers button (before dropdown icon) -->
-<a href="trainers-panel.html" class="ml-1 px-3 py-2 rounded-lg btn-accent text-sm hidden sm:inline-block">
-  View Trainers
-</a>
+        <!-- View Trainers button (#97FB57) -->
+        <a href="trainers-panel.html" class="ml-1 px-3 py-2 rounded-lg btn-accent text-sm hidden sm:inline-block">
+          View Trainers
+        </a>
+
         <!-- ▼ dropdown arrow button -->
         <button id="userMenuBtn" class="p-2 rounded-full hover:bg-[#1f1f1f] transition" aria-haspopup="true" aria-expanded="false" aria-controls="userMenu" aria-label="Open menu">
           <i data-feather="chevron-down"></i>
@@ -90,7 +89,6 @@
           <a href="profile-client.html" class="menu-item" id="menuProfile">
             <i data-feather="user" class="w-4 h-4"></i><span>View Profile</span>
           </a>
-          <!-- 2) Working Sign Out -->
           <button class="menu-item w-full text-left" id="menuSignOut">
             <i data-feather="log-out" class="w-4 h-4"></i><span>Sign Out</span>
           </button>
@@ -166,9 +164,13 @@
     </div>
   </div>
 
-  <!-- ===== UI + Auth Glue ===== -->
-  <script>
-    feather.replace();
+  <!-- ===== All JS (modular) ===== -->
+  <script type="module">
+    import { auth } from './firebase-init.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+
+    // Feather icons
+    try { feather.replace(); } catch(e){}
 
     // Dropdown
     const userMenuBtn = document.getElementById('userMenuBtn');
@@ -189,7 +191,51 @@
     document.addEventListener('click', (e)=>{ if(!userMenu.contains(e.target) && e.target!==userMenuBtn){ toggleMenu(false); }});
     document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ toggleMenu(false); }});
 
-    // Calendar (no marks)
+    // Welcome header
+    const welcomeWrap = document.getElementById('welcomeWrap');
+    const fullNameEl  = document.getElementById('userFullName');
+    const avatarEl    = document.getElementById('userAvatar');
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const displayName = user.displayName || user.email || 'Athlete';
+        const photo = user.photoURL || '';
+        fullNameEl.textContent = displayName;
+
+        if (photo) {
+          avatarEl.src = photo;
+        } else {
+          const initial = displayName.trim().charAt(0).toUpperCase();
+          avatarEl.src = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+            <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
+              <rect width='100%' height='100%' fill='#232323'/>
+              <text x='50%' y='55%' text-anchor='middle' font-size='34' font-family='Inter' fill='#97FB57'>${initial}</text>
+            </svg>
+          `);
+        }
+        welcomeWrap.classList.remove('hidden');
+      } else {
+        welcomeWrap.classList.add('hidden');
+        // Uncomment if index requires auth:
+        // location.href = 'login.html';
+      }
+    });
+
+    // Sign out
+    menuSignOut.addEventListener('click', async () => {
+      toggleMenu(false);
+      try {
+        await signOut(auth);
+        location.href = 'login.html';
+      } catch (e) {
+        console.error('[SignOut] failed:', e);
+        alert('Sign out failed. Check console for details.');
+      }
+    });
+
+    /* ============================
+       Calendar (UI only)
+       ============================ */
     const calendarBtn = document.getElementById('calendarBtn');
     const calendarModal = document.getElementById('calendarModal');
     const closeCalendar = document.getElementById('closeCalendar');
@@ -263,7 +309,7 @@
     const openCal = () => { calendarModal.classList.remove('hidden'); renderCalendar(); }
     const closeCal = () => { calendarModal.classList.add('hidden'); }
 
-    calendarBtn.addEventListener('click', openCal);
+    document.getElementById('calendarBtn').addEventListener('click', openCal);
     closeCalendar.addEventListener('click', closeCal);
     calendarModal.addEventListener('click', (e)=>{ if(e.target === calendarModal) closeCal(); });
 
@@ -273,7 +319,7 @@
     monthSelect.addEventListener('change', (e) => { viewMonth = Number(e.target.value); renderCalendar(); });
     yearSelect.addEventListener('change',  (e) => { viewYear  = Number(e.target.value);  renderCalendar(); });
 
-    // Export Month (no rows)
+    // Export Month (empty table)
     exportMonthBtn.addEventListener('click', () => {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
@@ -285,70 +331,6 @@
       const fname = `ironpump-month-${viewYear}-${String(viewMonth+1).padStart(2,'0')}.pdf`;
       doc.save(fname);
     });
-
-    /* ==============================
-       AUTH glue (Compat-safe)
-       ============================== */
-    const welcomeWrap = document.getElementById('welcomeWrap');
-    const fullNameEl  = document.getElementById('userFullName');
-    const avatarEl    = document.getElementById('userAvatar');
-
-    function safeFeatherReplace() { try { feather.replace(); } catch(e){} }
-
-    // Work with either compat (firebase.auth()) or modular via global app init
-    function getAuthCompatOrNull() {
-      try {
-        if (window.firebase?.apps?.length) return window.firebase.auth();
-      } catch(e){}
-      return null;
-    }
-
-    // Populate welcome + enable real sign out
-    const authCompat = getAuthCompatOrNull();
-    if (authCompat) {
-      authCompat.onAuthStateChanged((user) => {
-        if (user) {
-          const displayName = user.displayName || user.email || "Athlete";
-          const photo = user.photoURL || "";
-          fullNameEl.textContent = displayName;
-          if (photo) {
-            avatarEl.src = photo;
-          } else {
-            // Simple placeholder (initial)
-            const initial = (displayName || "A").trim().charAt(0).toUpperCase();
-            avatarEl.src = `data:image/svg+xml;utf8,` + encodeURIComponent(`
-              <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
-                <rect width='100%' height='100%' fill='#232323'/>
-                <text x='50%' y='55%' text-anchor='middle' font-size='34' font-family='Inter' fill='#97FB57'>${initial}</text>
-              </svg>
-            `);
-          }
-          welcomeWrap.classList.remove('hidden');
-          safeFeatherReplace();
-        } else {
-          welcomeWrap.classList.add('hidden');
-        }
-      });
-
-      // Working Sign Out
-      menuSignOut.addEventListener('click', async () => {
-        toggleMenu(false);
-        try {
-          await authCompat.signOut();
-          // Redirect to login (adjust if your login page differs)
-          location.href = 'login.html';
-        } catch (e) {
-          console.error('[SignOut] failed:', e);
-          alert('Sign out failed. Check console for details.');
-        }
-      });
-    } else {
-      // Fallback (preview-only)
-      menuSignOut.addEventListener('click', () => {
-        toggleMenu(false);
-        alert('Sign out unavailable: Firebase not initialized.');
-      });
-    }
   </script>
 </body>
 </html>
