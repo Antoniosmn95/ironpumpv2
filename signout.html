@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Sign out</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+</head>
+<body>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
+    authDomain: "ironpump-gym-tracker.firebaseapp.com",
+    projectId: "ironpump-gym-tracker",
+    storageBucket: "ironpump-gym-tracker.appspot.com",
+    messagingSenderId: "267000647709",
+    appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
+    measurementId: "G-BG3TDDWXZH"
+  };
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  firebase.auth().signOut().then(()=>{
+    location.href = 'login.html';
+  }).catch(e=>{
+    document.body.innerText = 'Sign-out failed: ' + e;
+  });
+</script>
+</body></html>
