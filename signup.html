@@ -298,6 +298,13 @@
     const db   = exportedDb   || getFirestore(app);
     const storage = getStorage(app);
 
+    // ---------- Action Code Settings (custom verify page) ----------
+    // Update the URL to your deployed verify.html (GitHub Pages path below is based on your repo)
+    const actionCodeSettings = {
+      url: 'https://antoniosmn95.github.io/ironpumpv2/verify.html?continueUrl=login.html',
+      handleCodeInApp: true
+    };
+
     // Helpers
     const $ = (id) => document.getElementById(id);
     const statusEl = $('status');
@@ -455,7 +462,8 @@
           updatedAt: serverTimestamp()
         }, { merge: true });
 
-        await sendEmailVerification(cred.user);
+        // --- IMPORTANT: send verify email with actionCodeSettings ---
+        await sendEmailVerification(cred.user, actionCodeSettings);
 
         showSuccess('Account created! Check your email to verify.');
         document.getElementById('verifyPanel').classList.remove('hidden');
@@ -489,7 +497,8 @@
     document.getElementById('btnResend').addEventListener('click', async () => {
       const u = auth.currentUser;
       try {
-        await sendEmailVerification(u);
+        // resend using the SAME actionCodeSettings
+        await sendEmailVerification(u, actionCodeSettings);
         const hint = document.getElementById('verifyHint');
         hint.textContent = 'Verification email sent again.';
         hint.style.color = 'var(--accent)';
