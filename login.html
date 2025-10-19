@@ -25,22 +25,22 @@
     const auth = exportedAuth || getAuth(app);
     const db   = exportedDb   || getFirestore(app);
 
-    function routeFor(role){ return role==="trainer" ? "trainer-dashboard.html" : "index.html"; }
+    const routeFor = (role) => role === "trainer" ? "trainer-dashboard.html" : "index.html";
 
     onAuthStateChanged(auth, async (u)=>{
       if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
       try{ await reload(u); }catch{}
       try{
-        const snap = await getDoc(doc(db,"users",u.uid));
-        if(snap.exists()){
-          const d = snap.data()||{};
+        const snap = await getDoc(doc(db, "users", u.uid));
+        if (snap.exists()){
+          const d = snap.data() || {};
           const role = Array.isArray(d.roles) ? String(d.roles[0]||"client").toLowerCase()
                                               : String(d.role||"client").toLowerCase();
           location.replace(routeFor(role));
           return;
         }
       }catch(_){}
-      // If no role doc or error, safest is client area
+      // If profile missing/error, send to client area
       location.replace("index.html");
     });
   </script>
@@ -72,7 +72,7 @@
       <img src="ironpump.png" alt="IronPump Logo" class="logo">
       <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
     </div>
-    <p class="text-sm text-muted text-center mb-6">Log in and we’ll send you to the right dashboard.</p>
+    <p class="text-sm text-muted text-center mb-6">Enter your credentials. We’ll route you to the right dashboard.</p>
 
     <section class="panel rounded-2xl p-6">
       <form id="loginForm" class="space-y-4" novalidate>
@@ -98,11 +98,8 @@
             <input id="remember" type="checkbox" class="accent-[var(--accent)]">
             <span>Remember me</span>
           </label>
-          <div class="text-right text-sm">
-            <a class="link" href="signup.html">Sign up as Client</a>
-            <span class="text-muted"> · </span>
-            <a class="link" href="signup-trainer.html">Sign up as Trainer</a>
-          </div>
+          <!-- Single sign-up button (no role text here) -->
+          <a href="signup.html" class="btn-ghost px-3 py-2 rounded-lg text-sm">Create new account</a>
         </div>
 
         <button id="loginBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
@@ -142,6 +139,8 @@
     const statusEl  = $('status');
     const loginBtn  = $('loginBtn');
 
+    const routeFor = (role) => role === 'trainer' ? 'trainer-dashboard.html' : 'index.html';
+
     function friendlyAuthError(err){
       const code = String(err?.code || '');
       if (code.includes('invalid-credential')) return 'Email or password is incorrect.';
@@ -151,8 +150,6 @@
       if (code.includes('network-request-failed')) return 'Network error. Check your connection.';
       return err?.message || 'Something went wrong. Please try again.';
     }
-
-    function routeFor(role){ return role==='trainer' ? 'trainer-dashboard.html' : 'index.html'; }
 
     async function fetchUserRole(uid){
       const snap = await getDoc(doc(db,'users',uid));
@@ -171,7 +168,7 @@
     }
 
     // Toggle password visibility
-    document.getElementById('togglePw').addEventListener('click', () => {
+    $('togglePw').addEventListener('click', () => {
       const isPassword = pwEl.type === 'password';
       pwEl.type = isPassword ? 'text' : 'password';
       const icon = isPassword ? 'eye-off' : 'eye';
@@ -214,7 +211,7 @@
         let role = 'client';
         try { role = await fetchUserRole(cred.user.uid); }
         catch (roleErr){
-          // Block access if profile is missing/bad; sign out for safety
+          // Block access if profile missing/bad; sign out for safety
           try{ await signOut(auth); }catch{}
           statusEl.textContent = roleErr.message || 'Profile error. Please contact support.';
           statusEl.style.color = '#ff6b6b';
@@ -232,7 +229,7 @@
       }
     });
 
-    // If user returns here via back button after being logged in, push them out by role
+    // If user returns here via back button while signed in, push them out by role
     onAuthStateChanged(auth, async (u)=>{
       if(!u) return;
       try{ await reload(u); }catch{}
@@ -240,7 +237,6 @@
         const role = await fetchUserRole(u.uid);
         location.replace(routeFor(role));
       }catch(_){
-        // if profile missing while signed-in, safest is sign out + stay
         try{ await signOut(auth); }catch{}
       }
     });
