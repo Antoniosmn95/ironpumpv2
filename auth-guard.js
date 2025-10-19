@@ -1,4 +1,4 @@
-// auth-guard.js  (ES module, modular SDK)
+// auth-guard.js  (ES module, modular SDK) — role-aware & bounce-proof
 import {
   getAuth,
   onAuthStateChanged,
@@ -26,7 +26,6 @@ const ROUTE_BY_ROLE = {
 const ROLE_REQUIRED_BY_PAGE = {
   "trainer-dashboard.html": "trainer",
   "trainer-program-builder.html": "trainer",
-  // add more if you want to hard-gate them by role
 };
 
 const PUBLIC_PAGES = new Set([
@@ -37,42 +36,48 @@ const PUBLIC_PAGES = new Set([
   "reset-password.html",
 ]);
 
-// Current file name (default to index.html if empty like '/')
 const HERE = (location.pathname.split("/").pop() || "index.html").toLowerCase();
 
 function go(href) {
-  // Use replace to prevent going "back" into a protected page
   window.location.replace(href);
 }
 
-// ---- Welcome/hold redirect support ----
-// When the signup page shows the welcome overlay, it sets this key so
-// we *don’t* auto-redirect away from signup immediately.
+// ---- Welcome/hold redirect support (signup overlays) ----
 const HOLD_KEY = "ironpump_welcome_hold_ms";
-// consider the hold valid only for a short window (e.g., 6 seconds)
 const HOLD_MAX_AGE_MS = 6000;
 
 function setHold(msFromNow = 1500) {
-  try {
-    const until = Date.now() + Math.max(0, msFromNow);
-    sessionStorage.setItem(HOLD_KEY, String(until));
-  } catch {}
+  try { sessionStorage.setItem(HOLD_KEY, String(Date.now() + Math.max(0, msFromNow))); } catch {}
 }
-function clearHold() {
-  try { sessionStorage.removeItem(HOLD_KEY); } catch {}
-}
+function clearHold() { try { sessionStorage.removeItem(HOLD_KEY); } catch {} }
 function isHoldActive() {
   try {
-    const v = Number(sessionStorage.getItem(HOLD_KEY) || "0");
-    if (!v) return false;
-    const ageOk = v - Date.now();
-    if (ageOk <= -HOLD_MAX_AGE_MS) { clearHold(); return false; }
-    return Date.now() < v;
+    const until = Number(sessionStorage.getItem(HOLD_KEY) || "0");
+    if (!until) return false;
+    if (Date.now() - until > HOLD_MAX_AGE_MS) { clearHold(); return false; }
+    return Date.now() < until;
   } catch { return false; }
 }
-
-// Expose a helper globally in case pages want to set the hold manually.
 window.__IronpumpHoldRedirect = { set: setHold, clear: clearHold, active: isHoldActive };
+
+// ---- Last-known-role cache (fixes race/permissions hiccups) ----
+const LAST_ROLE_KEY = "ironpump_lastRole";
+function setLastRole(role) {
+  try {
+    if (!role) return;
+    sessionStorage.setItem(LAST_ROLE_KEY, role);
+    localStorage.setItem(LAST_ROLE_KEY, role);
+  } catch {}
+}
+function getLastRole() {
+  try {
+    return (
+      sessionStorage.getItem(LAST_ROLE_KEY) ||
+      localStorage.getItem(LAST_ROLE_KEY) ||
+      ""
+    ).toLowerCase();
+  } catch { return ""; }
+}
 
 // ---- Minimal event hub ----
 const listeners = new Set();
@@ -122,7 +127,6 @@ async function fetchProfile(uid) {
 function normalizedRole(p) {
   return String(p?.role || "").trim().toLowerCase();
 }
-
 function routeForRole(role) {
   return ROUTE_BY_ROLE[role] || "index.html";
 }
@@ -133,14 +137,13 @@ function startGuard() {
   if (_started) return;
   _started = true;
 
-  // Ensure session-only persistence (no top-level await)
   setupSessionPersistenceOnce();
 
   onAuthStateChanged(auth, async (user) => {
     _currentUser = user || null;
-    _profileCache = null; // bust on transitions
+    _profileCache = null;
 
-    // Not logged in → allow public, block protected
+    // Not logged in
     if (!user) {
       if (!PUBLIC_PAGES.has(HERE)) {
         console.warn("[AuthGuard] No user → redirecting to login.html");
@@ -151,17 +154,15 @@ function startGuard() {
       return;
     }
 
-    // Logged in
+    // Logged in: fetch profile role (may fail/lag due to rules/latency)
     let profile = null;
-    try {
-      profile = await fetchProfile(user.uid);
-    } catch (e) {
-      console.warn("[AuthGuard] fetchProfile error:", e);
-    }
-    const role = normalizedRole(profile);
+    try { profile = await fetchProfile(user.uid); } catch (e) { console.warn("[AuthGuard] fetchProfile error:", e); }
 
-    // If on a public page (e.g., login/signup), bounce to the right dashboard
-    // ...unless a short hold is active (welcome overlay after signup).
+    const roleFromProfile = normalizedRole(profile);
+    if (roleFromProfile) setLastRole(roleFromProfile);
+    const role = roleFromProfile || getLastRole(); // <- fallback is the fix
+
+    // On public page: go to dashboard unless overlay hold is active
     if (PUBLIC_PAGES.has(HERE)) {
       if (isHoldActive()) {
         console.log("[AuthGuard] Hold active — staying on public page briefly to show overlay.");
@@ -174,18 +175,25 @@ function startGuard() {
       }
     }
 
-    // If current page demands a specific role, enforce it
+    // Enforce role if page demands it
     const required = ROLE_REQUIRED_BY_PAGE[HERE];
-    if (required && role !== required) {
-      console.warn(`[AuthGuard] Role mismatch: need ${required}, have ${role || "(none)"} → redirecting`);
-      go(routeForRole(role));
-      if (_resolveAuthReady) { _resolveAuthReady(user); _resolveAuthReady = null; }
-      return;
+    if (required) {
+      if (role === required) {
+        // OK
+      } else if (!roleFromProfile && getLastRole() === required) {
+        // Profile not readable yet, but cache says it's fine → allow
+        console.warn(`[AuthGuard] Using cached role="${required}" while profile is unavailable — allowing access.`);
+      } else {
+        console.warn(`[AuthGuard] Role mismatch: need ${required}, have ${role || "(none)"} → redirecting`);
+        go(routeForRole(role));
+        if (_resolveAuthReady) { _resolveAuthReady(user); _resolveAuthReady = null; }
+        return;
+      }
     }
 
     if (_resolveAuthReady) { _resolveAuthReady(user); _resolveAuthReady = null; }
 
-    // Fan out to page listeners (dashboards, etc.)
+    // Fan out to page listeners
     listeners.forEach((cb) => {
       try { cb(user); } catch (e) { console.error("[AuthGuard] onAuth listener error:", e); }
     });
@@ -222,9 +230,9 @@ async function requireRole(role) {
   const u = await authReady;
   if (!u) return; // already redirected to login
   const p = await getProfile();
-  const have = normalizedRole(p);
+  const have = normalizedRole(p) || getLastRole();
   if (role && have !== String(role).toLowerCase()) {
-    console.warn(`[AuthGuard] requireRole(${role}) failed (have=${have}) → redirect`);
+    console.warn(`[AuthGuard] requireRole(${role}) failed (have=${have || "(none)"}) → redirect`);
     go(routeForRole(have));
   }
 }
@@ -234,7 +242,6 @@ async function signOut() {
   go("login.html");
 }
 
-// Expose globally (so inline scripts can call it)
 window.AuthGuard = {
   init,
   onAuth,
@@ -244,5 +251,4 @@ window.AuthGuard = {
   get currentUser() { return _currentUser; },
 };
 
-// Kick off
 init();
