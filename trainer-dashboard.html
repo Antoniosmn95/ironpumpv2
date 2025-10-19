@@ -5,15 +5,17 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Trainer Dashboard — IronPump</title>
 
-  <!-- Firebase + Auth Guard -->
+  <!-- Firebase + Auth Guard (modular app + guard) -->
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="auth-guard.js"></script>
+  <!-- 🔌 Logout wiring (uses AuthGuard.signOut with fallback) -->
+  <script type="module" src="logout.js"></script>
 
   <!-- Tailwind + Feather -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase compat (for static hosting) -->
+  <!-- Firebase compat (for your current Firestore/Storage calls) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
@@ -69,7 +71,8 @@
             <p id="welcomeName" class="text-sm font-semibold">Welcome</p>
             <p id="welcomeEmail" class="text-xs text-muted"></p>
           </div>
-          <button id="signOutBtn" class="ml-2 px-3 py-2 rounded-lg btn-ghost text-sm">
+          <!-- 🔒 No inline JS needed; logout.js will wire this via data-action -->
+          <button id="signOutBtn" data-action="signout" class="ml-2 px-3 py-2 rounded-lg btn-ghost text-sm">
             <i data-feather="log-out" class="inline mr-1"></i> Sign Out
           </button>
         </div>
@@ -193,7 +196,7 @@
   <script>
     // ===== Guard: trainer only =====
     AuthGuard.init();
-    AuthGuard.requireRole('trainer'); // will redirect non-trainers to login with ?next=trainer-dashboard.html
+    AuthGuard.requireRole('trainer'); // non-trainers redirected to login with ?next=trainer-dashboard.html
 
     const db = firebase.firestore();
     let currentUser = null;
@@ -226,7 +229,7 @@
     const userAvatar = el('userAvatar');
     const welcomeName= el('welcomeName');
     const welcomeEmail = el('welcomeEmail');
-    const signOutBtn = el('signOutBtn');
+    // NOTE: no JS wiring here for signOutBtn — logout.js handles it by data-action="signout"
 
     feather.replace();
 
@@ -258,18 +261,13 @@
       userAvatar.src = photoURL || svgInitials(displayName || email);
       userChip.classList.remove('hidden');
 
-      signOutBtn.addEventListener('click', async ()=>{
-        try { await AuthGuard.signOut(); }
-        finally { window.location.replace('login.html'); }
-      });
-
       await loadClients();
       await loadKPIs();
       await loadPending();
       feather.replace();
     });
 
-    // ------- KPIs (use workout_logs/{clientId}/days like client app) -------
+    // ------- KPIs -------
     async function loadKPIs(){
       if(!currentUser) return;
 
@@ -291,7 +289,6 @@
 
       const clientIds = clientsSnap.docs.map(d=>d.id);
       for (const cid of clientIds) {
-        // logs path mirrors index.html: workout_logs/{uid}/days
         const logsRef = db.collection('workout_logs').doc(cid).collection('days');
         const recentSnap = await logsRef.where('date','>=', iso30).orderBy('date','desc').get();
         totalSessions += recentSnap.size;
@@ -302,7 +299,6 @@
       kpiSessionsEl.textContent = totalSessions;
       kpiActiveEl.textContent = activeThisWeek;
 
-      // Show empty CTA if no clients
       if (clientsSnap.size === 0) emptyCta.classList.remove('hidden');
       else emptyCta.classList.add('hidden');
     }
@@ -391,7 +387,7 @@
       }
     });
 
-    // ------- Pending join requests (optional flow) -------
+    // ------- Pending join requests -------
     async function loadPending(){
       if(!currentUser) return;
       const qs = await db.collection('join_requests')
@@ -450,7 +446,7 @@
 
       const avatar = c.photoURL || ('https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57');
 
-      // Support both old and new field names (your signup uses heightCm/weightKg/trainingLocation/extra)
+      // Support both old and new field names
       const age = c.age ?? '—';
       const weight = c.weightKg ?? c.weight ?? '—';
       const height = c.heightCm ?? c.height ?? '—';
