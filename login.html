@@ -15,10 +15,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase COMPAT SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+  <!-- Modular Firebase init + guard -->
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="auth-guard.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -30,6 +29,7 @@
     .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 0 12px rgba(151,251,87,.45), inset 0 0 0 1px rgba(18,18,18,.4);transition:filter .15s ease, transform .05s ease}
     .btn-accent:hover{filter:brightness(.95)}
     .btn-accent:active{transform:translateY(1px)}
+    .btn-ghost{ background:#232323; color:var(--light); border:1px solid rgba(144,144,144,.35); }
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
@@ -75,7 +75,7 @@
             </button>
           </div>
         </div>
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
           <label class="inline-flex items-center gap-2 text-sm">
             <input id="remember" type="checkbox" class="accent-[var(--accent)]">
             <span>Remember me</span>
@@ -88,6 +88,26 @@
         </button>
         <p id="status" class="text-sm mt-2"></p>
       </form>
+
+      <!-- Email verification panel (shown if the user is unverified after login) -->
+      <div id="verifyPanel" class="hidden mt-3 p-3 rounded-xl border border-[rgba(144,144,144,0.35)] bg-[#171717]">
+        <div class="flex items-start gap-2.5">
+          <div class="w-3.5 h-3.5 spinner" aria-hidden="true" style="border:2px solid rgba(255,255,255,.25); border-top-color:rgba(255,255,255,.9)"></div>
+          <div class="flex-1">
+            <p class="font-semibold text-sm">Verify your email to continue</p>
+            <p class="text-xs text-muted mt-1">
+              We sent a verification link to <span id="vEmail" class="font-medium"></span>.
+              Once you verify, click “I’ve verified”.
+            </p>
+            <div class="flex flex-wrap gap-2 mt-2">
+              <button type="button" id="btnCheck" class="btn-accent px-2.5 py-1.5 rounded-lg font-medium text-sm">I’ve verified</button>
+              <button type="button" id="btnResend" class="btn-ghost px-2.5 py-1.5 rounded-lg font-medium text-sm">Resend email</button>
+              <button type="button" id="btnSignOut" class="btn-ghost px-2.5 py-1.5 rounded-lg font-medium text-sm">Sign out</button>
+            </div>
+            <p id="verifyHint" class="text-[11px] text-muted mt-2">Tip: Sometimes it lands in Spam/Promotions.</p>
+          </div>
+        </div>
+      </div>
     </section>
 
     <p class="text-center text-xs text-muted mt-4">
@@ -95,30 +115,22 @@
     </p>
   </main>
 
-  <script>
+  <script type="module">
     feather.replace();
 
-    const log = (...a)=>console.log('[IronPump]',...a);
-    const err  = (...a)=>console.error('[IronPump]',...a);
+    import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
+    import {
+      getAuth, setPersistence,
+      browserLocalPersistence, browserSessionPersistence,
+      signInWithEmailAndPassword, sendPasswordResetEmail,
+      onAuthStateChanged, reload, sendEmailVerification, signOut
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+    import {
+      getFirestore, doc, getDoc
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 
-    // ---- Firebase init (compat only) ----
-    const firebaseConfig = {
-      apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
-      authDomain: "ironpump-gym-tracker.firebaseapp.com",
-      projectId: "ironpump-gym-tracker",
-      storageBucket: "ironpump-gym-tracker.appspot.com", // ✅ fixed
-      messagingSenderId: "267000647709",
-      appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
-      measurementId: "G-BG3TDDWXZH"
-    };
-
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-      log('Firebase initialized');
-    }
-
-    const auth = firebase.auth();
-    const db   = firebase.firestore();
+    const auth = exportedAuth || getAuth(app);
+    const db   = exportedDb   || getFirestore(app);
 
     // ---- Role UI logic ----
     let chosenRole = sessionStorage.getItem('ironpump_chosenRole') || 'client';
@@ -143,101 +155,119 @@
     setRole(chosenRole);
 
     // ---- Helpers ----
-    function friendlyAuthError(err){
-      const code = err?.code || '';
-      if (code.includes('invalid-credential')) return 'Email or password is incorrect.';
-      if (code.includes('user-not-found')) return 'No account found with that email.';
-      if (code.includes('wrong-password')) return 'Email or password is incorrect.';
-      if (code.includes('too-many-requests')) return 'Too many attempts. Please try again later.';
-      if (code.includes('network-request-failed')) return 'Network error. Check your connection.';
-      return 'Something went wrong. Please try again.';
-    }
+    const $ = (id) => document.getElementById(id);
+    const emailEl = $('email');
+    const pwEl = $('password');
+    const rememberEl = $('remember');
+    const statusEl = $('status');
+    const loginBtn = $('loginBtn');
 
-    function userHasRole(roles, role) {
-      if (!roles || !roles.length) return role === 'client';
-      return roles.includes(role);
+    function friendlyAuthError(err){
+      const code = String(err?.code || '');
+      if (code.includes('invalid-credential')) return 'Email or password is incorrect.';
+      if (code.includes('user-not-found'))     return 'No account found with that email.';
+      if (code.includes('wrong-password'))     return 'Email or password is incorrect.';
+      if (code.includes('too-many-requests'))  return 'Too many attempts. Please try again later.';
+      if (code.includes('network-request-failed')) return 'Network error. Check your connection.';
+      return err?.message || 'Something went wrong. Please try again.';
     }
     function routeFor(role) {
       const next = new URLSearchParams(location.search).get('next');
       return role === 'trainer' ? (next || 'trainer-dashboard.html') : (next || 'index.html');
     }
-    async function fetchUserRoles(uid) {
+    async function fetchUserRole(uid) {
       try {
-        const snap = await db.collection('users').doc(uid).get();
-        if (!snap.exists) return { roles: [] };
+        const snap = await getDoc(doc(db, 'users', uid));
+        if (!snap.exists()) return 'client';
         const data = snap.data() || {};
-        const roles = Array.isArray(data.roles)
-          ? data.roles.map(r => String(r).toLowerCase())
-          : [String(data.role || 'client').toLowerCase()];
-        return { roles };
-      } catch (e) {
-        err('fetchUserRoles failed:', e);
-        return { roles: [] };
-      }
-    }
-    async function routeAfterLogin(uid) {
-      const statusEl = document.getElementById('status');
-      const { roles } = await fetchUserRoles(uid);
-      if (userHasRole(roles, chosenRole)) {
-        location.replace(routeFor(chosenRole));
-      } else {
-        statusEl.style.color = '#ff6b6b';
-        statusEl.textContent = `You don't have ${chosenRole} access. Switch role or contact your trainer/admin.`;
+        return Array.isArray(data.roles) ? String(data.roles[0] || 'client').toLowerCase()
+                                         : String(data.role || 'client').toLowerCase();
+      } catch {
+        return 'client';
       }
     }
 
-    // ---- Auth listeners ----
-    auth.onAuthStateChanged(async (u) => {
-      if (u) await routeAfterLogin(u.uid);
-    });
-
-    // ---- UI events ----
-    const emailEl = document.getElementById('email');
-    const pwEl = document.getElementById('password');
-    const rememberEl = document.getElementById('remember');
-    const statusEl = document.getElementById('status');
-    const loginBtn = document.getElementById('loginBtn');
-    const togglePwBtn = document.getElementById('togglePw');
-
-    togglePwBtn.addEventListener('click', () => {
+    // ---- Password eye toggle ----
+    document.getElementById('togglePw').addEventListener('click', () => {
       const isPassword = pwEl.type === 'password';
       pwEl.type = isPassword ? 'text' : 'password';
       const icon = isPassword ? 'eye-off' : 'eye';
       const iconEl = document.querySelector('#togglePw i');
-      if (iconEl) {
-        iconEl.setAttribute('data-feather', icon);
-        if (window.feather && typeof feather.replace === 'function') {
-          feather.replace();
-        }
-      }
+      if (iconEl) { iconEl.setAttribute('data-feather', icon); feather.replace(); }
     });
 
+    // ---- Forgot password ----
     document.getElementById('forgotBtn').addEventListener('click', async () => {
       const email = emailEl.value.trim();
       if (!email) { statusEl.textContent = 'Enter your email first.'; return; }
       try {
-        await auth.sendPasswordResetEmail(email);
-        statusEl.textContent = 'Password reset email sent.';
-        statusEl.style.color = 'var(--accent)';
+        await sendPasswordResetEmail(auth, email);
+        statusEl.textContent = 'Password reset email sent.'; statusEl.style.color = 'var(--accent)';
       } catch (e) {
-        statusEl.style.color = '#ff6b6b';
-        statusEl.textContent = friendlyAuthError(e);
+        statusEl.textContent = friendlyAuthError(e); statusEl.style.color = '#ff6b6b';
       }
     });
 
+    // ---- Email verification panel helpers ----
+    const verifyPanel = document.getElementById('verifyPanel');
+    function showVerifyPanel(email){
+      document.getElementById('vEmail').textContent = email || '';
+      verifyPanel.classList.remove('hidden');
+    }
+    function hideVerifyPanel(){ verifyPanel.classList.add('hidden'); }
+
+    document.getElementById('btnResend').addEventListener('click', async () => {
+      const u = auth.currentUser; if (!u) return;
+      try {
+        await sendEmailVerification(u);
+        const hint = document.getElementById('verifyHint');
+        hint.textContent = 'Verification email sent again.'; hint.style.color = 'var(--accent)';
+      } catch {
+        const hint = document.getElementById('verifyHint');
+        hint.textContent = 'Could not resend. Please try again later.'; hint.style.color = '#ff6b6b';
+      }
+    });
+    document.getElementById('btnCheck').addEventListener('click', async () => {
+      const u = auth.currentUser; if (!u) return;
+      try { await reload(u); } catch {}
+      if (u.emailVerified) {
+        hideVerifyPanel();
+        const role = await fetchUserRole(u.uid);
+        location.replace(routeFor(role));
+      }
+    });
+    document.getElementById('btnSignOut').addEventListener('click', async () => {
+      try { await signOut(auth); } catch {}
+      hideVerifyPanel();
+      statusEl.textContent = 'Signed out.'; statusEl.style.color = 'var(--muted)';
+    });
+
+    // ---- Login submit ----
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = emailEl.value.trim();
-      const pass = pwEl.value;
+      const pass  = pwEl.value;
       if (!email || !pass) { statusEl.textContent = 'Please fill in email and password.'; return; }
+
       try {
         loginBtn.disabled = true;
-        await auth.setPersistence(rememberEl.checked
-          ? firebase.auth.Auth.Persistence.LOCAL
-          : firebase.auth.Auth.Persistence.SESSION);
-        const cred = await auth.signInWithEmailAndPassword(email, pass);
+
+        await setPersistence(auth, rememberEl.checked
+          ? browserLocalPersistence
+          : browserSessionPersistence);
+
+        const cred = await signInWithEmailAndPassword(auth, email, pass);
         statusEl.textContent = '';
-        await routeAfterLogin(cred.user.uid);
+
+        // If not verified, stop here and show panel
+        if (!cred.user.emailVerified) {
+          showVerifyPanel(email);
+          return;
+        }
+
+        // Verified → route by stored role
+        const role = await fetchUserRole(cred.user.uid);
+        location.replace(routeFor(role));
       } catch (e) {
         console.error('[Auth] signIn failed:', e.code, e.message);
         statusEl.textContent = friendlyAuthError(e);
@@ -245,6 +275,15 @@
       } finally {
         loginBtn.disabled = false;
       }
+    });
+
+    // ---- If already logged in (e.g., back button), AuthGuard will redirect; we also handle here softly ----
+    onAuthStateChanged(auth, async (u) => {
+      if (!u) return;
+      try { await reload(u); } catch {}
+      if (!u.emailVerified) { showVerifyPanel(u.email); return; }
+      const role = await fetchUserRole(u.uid);
+      location.replace(routeFor(role));
     });
   </script>
 </body>
