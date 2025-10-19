@@ -15,8 +15,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Firebase -->
-  <script type="module" src="firebase-init.js"></script>
+  <!-- Firebase COMPAT SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
@@ -34,22 +33,15 @@
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
-
-    /* Segmented role switch */
     .seg { display:flex; background:#1b1b1b; border:1px solid rgba(144,144,144,.35); border-radius:9999px; padding:4px; gap:4px; }
     .seg button { flex:1; padding:.5rem .75rem; border-radius:9999px; font-weight:600; color:var(--light); background:transparent; border:none; cursor:pointer; }
     .seg button.active { background:var(--accent); color:var(--bg); box-shadow:0 0 10px rgba(151,251,87,.35) inset; }
-
-    /* Logo */
     .logo { width: 80px; height: auto; margin: 0 auto 10px; display:block; }
-
-    /* Status area */
-    #status { color: var(--muted); min-height: 1.25rem; } /* keeps layout stable */
+    #status { color: var(--muted); min-height: 1.25rem; }
   </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
   <main class="w-full max-w-md">
-    <!-- Header -->
     <div class="text-center mb-2">
       <img src="ironpump.png" alt="IronPump Logo" class="logo">
       <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
@@ -57,25 +49,20 @@
     <p class="text-sm text-muted text-center mb-6">Choose your role and log in to your account.</p>
 
     <section class="panel rounded-2xl p-6">
-      <!-- Role choice -->
       <div class="mb-4">
         <label class="block text-sm mb-2">Log in as</label>
         <div class="seg" role="tablist" aria-label="Login role">
-          <button type="button" id="roleClient" class="active" role="tab"
-                  aria-selected="true" aria-controls="loginForm">Client</button>
-          <button type="button" id="roleTrainer" role="tab"
-                  aria-selected="false" aria-controls="loginForm">Trainer</button>
+          <button type="button" id="roleClient" class="active" role="tab" aria-selected="true">Client</button>
+          <button type="button" id="roleTrainer" role="tab" aria-selected="false">Trainer</button>
         </div>
         <p class="text-xs text-muted mt-2" id="roleHint">You’re logging in as <span class="accent-text font-semibold">Client</span>.</p>
       </div>
 
-      <!-- Form -->
       <form id="loginForm" class="space-y-4" novalidate>
         <div>
           <label for="email" class="block text-sm mb-1">Email</label>
           <input id="email" type="email" required class="input" placeholder="you@example.com" autocomplete="email"/>
         </div>
-
         <div>
           <div class="flex items-center justify-between mb-1">
             <label for="password" class="block text-sm">Password</label>
@@ -88,7 +75,6 @@
             </button>
           </div>
         </div>
-
         <div class="flex items-center justify-between">
           <label class="inline-flex items-center gap-2 text-sm">
             <input id="remember" type="checkbox" class="accent-[var(--accent)]">
@@ -97,11 +83,9 @@
           <a href="signup.html" id="registerClient" class="text-sm accent-text hover:underline">Are you a client? Register here</a>
           <a href="signup-trainer.html" id="registerTrainer" class="text-sm accent-text hover:underline hidden">Are you a trainer? Register here</a>
         </div>
-
         <button id="loginBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
           <i data-feather="log-in" class="w-4 h-4"></i><span>Log In</span>
         </button>
-
         <p id="status" class="text-sm mt-2"></p>
       </form>
     </section>
@@ -114,26 +98,29 @@
   <script>
     feather.replace();
 
-    // Warn if run from file://
-    if (location.protocol === 'file:') {
-      console.warn('[IronPump] Firebase Auth may fail on file://. Serve over http(s) and whitelist domain in Firebase.');
-    }
+    const log = (...a)=>console.log('[IronPump]',...a);
+    const err  = (...a)=>console.error('[IronPump]',...a);
 
-    // Firebase init
+    // ---- Firebase init (compat only) ----
     const firebaseConfig = {
       apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
       authDomain: "ironpump-gym-tracker.firebaseapp.com",
       projectId: "ironpump-gym-tracker",
-      storageBucket: "ironpump-gym-tracker.firebasestorage.app",
+      storageBucket: "ironpump-gym-tracker.appspot.com", // ✅ fixed
       messagingSenderId: "267000647709",
       appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
       measurementId: "G-BG3TDDWXZH"
     };
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+      log('Firebase initialized');
+    }
+
     const auth = firebase.auth();
     const db   = firebase.firestore();
 
-    // Role UI logic
+    // ---- Role UI logic ----
     let chosenRole = sessionStorage.getItem('ironpump_chosenRole') || 'client';
     const roleClientBtn = document.getElementById('roleClient');
     const roleTrainerBtn = document.getElementById('roleTrainer');
@@ -147,22 +134,15 @@
       sessionStorage.setItem('ironpump_chosenRole', chosenRole);
       roleClientBtn.classList.toggle('active', isClient);
       roleTrainerBtn.classList.toggle('active', !isClient);
-      roleClientBtn.setAttribute('aria-selected', String(isClient));
-      roleTrainerBtn.setAttribute('aria-selected', String(!isClient));
       roleHint.innerHTML = `You’re logging in as <span class="accent-text font-semibold">${isClient ? 'Client' : 'Trainer'}</span>.`;
       regClient.classList.toggle('hidden', !isClient);
       regTrainer.classList.toggle('hidden', isClient);
     }
     roleClientBtn.addEventListener('click', () => setRole('client'));
     roleTrainerBtn.addEventListener('click', () => setRole('trainer'));
-    document.querySelector('.seg').addEventListener('keydown', (e) => {
-      if (!['ArrowLeft','ArrowRight'].includes(e.key)) return;
-      e.preventDefault();
-      (document.activeElement.id === 'roleClient' ? roleTrainerBtn : roleClientBtn).focus();
-    });
     setRole(chosenRole);
 
-    // Friendly errors
+    // ---- Helpers ----
     function friendlyAuthError(err){
       const code = err?.code || '';
       if (code.includes('invalid-credential')) return 'Email or password is incorrect.';
@@ -173,7 +153,6 @@
       return 'Something went wrong. Please try again.';
     }
 
-    // Routing
     function userHasRole(roles, role) {
       if (!roles || !roles.length) return role === 'client';
       return roles.includes(role);
@@ -187,23 +166,32 @@
         const snap = await db.collection('users').doc(uid).get();
         if (!snap.exists) return { roles: [] };
         const data = snap.data() || {};
-        let roles = Array.isArray(data.roles) ? data.roles.map(r => String(r).toLowerCase()) : [String(data.role || 'client').toLowerCase()];
+        const roles = Array.isArray(data.roles)
+          ? data.roles.map(r => String(r).toLowerCase())
+          : [String(data.role || 'client').toLowerCase()];
         return { roles };
-      } catch { return { roles: [] }; }
+      } catch (e) {
+        err('fetchUserRoles failed:', e);
+        return { roles: [] };
+      }
     }
     async function routeAfterLogin(uid) {
       const statusEl = document.getElementById('status');
       const { roles } = await fetchUserRoles(uid);
-      if (userHasRole(roles, chosenRole)) location.replace(routeFor(chosenRole));
-      else {
+      if (userHasRole(roles, chosenRole)) {
+        location.replace(routeFor(chosenRole));
+      } else {
         statusEl.style.color = '#ff6b6b';
         statusEl.textContent = `You don't have ${chosenRole} access. Switch role or contact your trainer/admin.`;
       }
     }
 
-    // Auth
-    auth.onAuthStateChanged(async (u) => { if (u) await routeAfterLogin(u.uid); });
+    // ---- Auth listeners ----
+    auth.onAuthStateChanged(async (u) => {
+      if (u) await routeAfterLogin(u.uid);
+    });
 
+    // ---- UI events ----
     const emailEl = document.getElementById('email');
     const pwEl = document.getElementById('password');
     const rememberEl = document.getElementById('remember');
@@ -215,7 +203,6 @@
       const isPassword = pwEl.type === 'password';
       pwEl.type = isPassword ? 'text' : 'password';
       const icon = isPassword ? 'eye-off' : 'eye';
-      togglePwBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
       document.querySelector('#togglePw i').setAttribute('data-feather', icon);
       feather.replace();
     });
@@ -240,12 +227,14 @@
       if (!email || !pass) { statusEl.textContent = 'Please fill in email and password.'; return; }
       try {
         loginBtn.disabled = true;
-        await auth.setPersistence(rememberEl.checked ? firebase.auth.Auth.Persistence.LOCAL
-                                                    : firebase.auth.Auth.Persistence.SESSION);
-        const { user } = await auth.signInWithEmailAndPassword(email, pass);
-        await routeAfterLogin(user.uid);
-      } catch (err) {
-        statusEl.textContent = friendlyAuthError(err);
+        await auth.setPersistence(rememberEl.checked
+          ? firebase.auth.Auth.Persistence.LOCAL
+          : firebase.auth.Auth.Persistence.SESSION);
+        const cred = await auth.signInWithEmailAndPassword(email, pass);
+        statusEl.textContent = '';
+        await routeAfterLogin(cred.user.uid);
+      } catch (e) {
+        statusEl.textContent = friendlyAuthError(e);
         statusEl.style.color = '#ff6b6b';
       } finally {
         loginBtn.disabled = false;
