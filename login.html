@@ -15,7 +15,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Modular Firebase init + guard -->
+  <!-- Modular Firebase init + optional guard -->
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="auth-guard.js"></script>
 
@@ -88,26 +88,6 @@
         </button>
         <p id="status" class="text-sm mt-2"></p>
       </form>
-
-      <!-- Email verification panel (shown if the user is unverified after login) -->
-      <div id="verifyPanel" class="hidden mt-3 p-3 rounded-xl border border-[rgba(144,144,144,0.35)] bg-[#171717]">
-        <div class="flex items-start gap-2.5">
-          <div class="w-3.5 h-3.5 spinner" aria-hidden="true" style="border:2px solid rgba(255,255,255,.25); border-top-color:rgba(255,255,255,.9)"></div>
-          <div class="flex-1">
-            <p class="font-semibold text-sm">Verify your email to continue</p>
-            <p class="text-xs text-muted mt-1">
-              We sent a verification link to <span id="vEmail" class="font-medium"></span>.
-              Once you verify, click “I’ve verified”.
-            </p>
-            <div class="flex flex-wrap gap-2 mt-2">
-              <button type="button" id="btnCheck" class="btn-accent px-2.5 py-1.5 rounded-lg font-medium text-sm">I’ve verified</button>
-              <button type="button" id="btnResend" class="btn-ghost px-2.5 py-1.5 rounded-lg font-medium text-sm">Resend email</button>
-              <button type="button" id="btnSignOut" class="btn-ghost px-2.5 py-1.5 rounded-lg font-medium text-sm">Sign out</button>
-            </div>
-            <p id="verifyHint" class="text-[11px] text-muted mt-2">Tip: Sometimes it lands in Spam/Promotions.</p>
-          </div>
-        </div>
-      </div>
     </section>
 
     <p class="text-center text-xs text-muted mt-4">
@@ -123,7 +103,7 @@
       getAuth, setPersistence,
       browserLocalPersistence, browserSessionPersistence,
       signInWithEmailAndPassword, sendPasswordResetEmail,
-      onAuthStateChanged, reload, sendEmailVerification, signOut
+      onAuthStateChanged, reload
     } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
     import {
       getFirestore, doc, getDoc
@@ -208,40 +188,6 @@
       }
     });
 
-    // ---- Email verification panel helpers ----
-    const verifyPanel = document.getElementById('verifyPanel');
-    function showVerifyPanel(email){
-      document.getElementById('vEmail').textContent = email || '';
-      verifyPanel.classList.remove('hidden');
-    }
-    function hideVerifyPanel(){ verifyPanel.classList.add('hidden'); }
-
-    document.getElementById('btnResend').addEventListener('click', async () => {
-      const u = auth.currentUser; if (!u) return;
-      try {
-        await sendEmailVerification(u);
-        const hint = document.getElementById('verifyHint');
-        hint.textContent = 'Verification email sent again.'; hint.style.color = 'var(--accent)';
-      } catch {
-        const hint = document.getElementById('verifyHint');
-        hint.textContent = 'Could not resend. Please try again later.'; hint.style.color = '#ff6b6b';
-      }
-    });
-    document.getElementById('btnCheck').addEventListener('click', async () => {
-      const u = auth.currentUser; if (!u) return;
-      try { await reload(u); } catch {}
-      if (u.emailVerified) {
-        hideVerifyPanel();
-        const role = await fetchUserRole(u.uid);
-        location.replace(routeFor(role));
-      }
-    });
-    document.getElementById('btnSignOut').addEventListener('click', async () => {
-      try { await signOut(auth); } catch {}
-      hideVerifyPanel();
-      statusEl.textContent = 'Signed out.'; statusEl.style.color = 'var(--muted)';
-    });
-
     // ---- Login submit ----
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -259,13 +205,7 @@
         const cred = await signInWithEmailAndPassword(auth, email, pass);
         statusEl.textContent = '';
 
-        // If not verified, stop here and show panel
-        if (!cred.user.emailVerified) {
-          showVerifyPanel(email);
-          return;
-        }
-
-        // Verified → route by stored role
+        // Route by stored role (no email verification checks)
         const role = await fetchUserRole(cred.user.uid);
         location.replace(routeFor(role));
       } catch (e) {
@@ -277,11 +217,10 @@
       }
     });
 
-    // ---- If already logged in (e.g., back button), AuthGuard will redirect; we also handle here softly ----
+    // ---- Already signed-in case (e.g., back button)
     onAuthStateChanged(auth, async (u) => {
       if (!u) return;
       try { await reload(u); } catch {}
-      if (!u.emailVerified) { showVerifyPanel(u.email); return; }
       const role = await fetchUserRole(u.uid);
       location.replace(routeFor(role));
     });
