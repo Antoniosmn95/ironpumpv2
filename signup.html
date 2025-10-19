@@ -2,175 +2,327 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Sign Up — IronPump</title>
 
   <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- (Optional) If you already include this elsewhere, it's fine; init is guarded below -->
+  <!-- Optional guarded init -->
   <script type="module" src="firebase-init.js"></script>
 
-  <!-- Firebase compat SDKs (good for static hosting like GitHub Pages) -->
+  <!-- Firebase compat SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-storage-compat.js"></script>
 
+  <!-- Option B (Themed popup): Flatpickr -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
+
+    :root{
+      --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2;
+      --base-fs:14px;
+      --gap-sm:.5rem; --gap-md:.65rem; --gap-lg:.9rem;
+      --input-h:34px; --input-pad-y:.45rem; --input-pad-x:.6rem; --radius:.6rem;
+    }
+
     html,body{ height:100%; }
-    body{ font-family:'Inter',sans-serif; background:var(--bg); color:var(--light); }
+    body{
+      font-family:'Inter',sans-serif; background:var(--bg); color:var(--light);
+      padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+      font-size: var(--base-fs); line-height: 1.34;
+    }
+
     .panel{ background:#161616; border:1px solid rgba(144,144,144,0.35); }
-    .card { background:#171717; border:1px solid rgba(144,144,144,0.35); }
     .accent-text{ color:var(--accent); }
     .text-muted{ color:var(--muted); }
+
     .btn-accent{
       background:var(--accent); color:var(--bg);
-      box-shadow:0 0 12px rgba(151,251,87,0.45), inset 0 0 0 1px rgba(18,18,18,0.4);
+      box-shadow:0 0 8px rgba(151,251,87,0.35), inset 0 0 0 1px rgba(18,18,18,0.4);
       transition:filter .15s ease, transform .05s ease;
     }
     .btn-accent:hover{ filter:brightness(.95); }
     .btn-accent:active{ transform:translateY(1px); }
-    .btn-ghost{
-      background:#232323; color:var(--light); border:1px solid rgba(144,144,144,0.35);
-      transition:background .15s ease, transform .05s ease;
-    }
-    .btn-ghost:hover{ background:#2a2a2a; }
+    .btn-ghost{ background:#232323; color:var(--light); border:1px solid rgba(144,144,144,0.35); }
+
     .input{
-      width:100%; padding:.6rem .75rem; border-radius:.75rem;
+      width:100%;
+      padding:var(--input-pad-y) var(--input-pad-x);
+      border-radius:var(--radius);
       background:#1e1e1e; border:1px solid rgba(144,144,144,.35); outline:none;
+      min-height:var(--input-h);
     }
     .input:focus{ outline:2px solid var(--accent); }
-    .grid-2{ display:grid; grid-template-columns:1fr; gap:1rem; }
-    @media(min-width:768px){ .grid-2{ grid-template-columns:1fr 1fr; } }
+
+    label{ font-size:.85rem; margin-bottom:.35rem; display:block; }
+    .help, small{ font-size:.75rem; color:var(--muted); }
+
+    .form-grid{
+      display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: var(--gap-md) var(--gap-lg); align-items:start;
+    }
+    .stack{ display:flex; flex-direction:column; gap:var(--gap-sm); }
+
+    .title { font-size: 1.55rem; }
+
+    .spinner {
+      width: 14px; height: 14px; border-radius: 9999px;
+      border: 2px solid rgba(255,255,255,.25); border-top-color: rgba(255,255,255,.9);
+      animation: spin .8s linear infinite; display:inline-block; vertical-align: -2px; margin-right: .4rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ========= Option A: Native date input, matching app colors ========= */
+    input[type="date"]{
+      color-scheme: dark;                 /* dark popup styling for supported browsers */
+      accent-color: var(--accent);        /* selection/focus accent where supported */
+    }
+    /* Default (password-eye/muted) */
+    input[type="date"]::-webkit-calendar-picker-indicator{
+      opacity: 1;
+      background: url("data:image/svg+xml;utf8,\
+      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23909090' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
+        <rect x='3' y='4' width='18' height='18' rx='2' ry='2'/>\
+        <line x1='16' y1='2' x2='16' y2='6'/>\
+        <line x1='8' y1='2' x2='8' y2='6'/>\
+        <line x1='3' y1='10' x2='21' y2='10'/>\
+      </svg>") no-repeat center / 18px 18px;
+      cursor: pointer;
+    }
+    /* On focus, switch to accent */
+    input[type="date"]:focus::-webkit-calendar-picker-indicator{
+      background-image: url("data:image/svg+xml;utf8,\
+      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397FB57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
+        <rect x='3' y='4' width='18' height='18' rx='2' ry='2'/>\
+        <line x1='16' y1='2' x2='16' y2='6'/>\
+        <line x1='8' y1='2' x2='8' y2='6'/>\
+        <line x1='3' y1='10' x2='21' y2='10'/>\
+      </svg>");
+    }
+
+    /* ========= Option B: Themed Flatpickr popup (matches IronPump) ========= */
+    .flatpickr-calendar{
+      background:#171717;
+      border:1px solid rgba(144,144,144,.35);
+      box-shadow:0 10px 30px rgba(0,0,0,.45);
+      color:var(--light);
+    }
+    .flatpickr-months, .flatpickr-weekdays{
+      background:#161616; color:var(--light);
+      border-bottom:1px solid rgba(144,144,144,.25);
+    }
+    .flatpickr-current-month .flatpickr-monthDropdown-months,
+    .flatpickr-current-month input.cur-year{ color:var(--light); }
+    .flatpickr-weekday{ color:var(--muted); }
+    .flatpickr-day{ color:var(--light); border-radius:.45rem; }
+    .flatpickr-day:hover{ background:#222; }
+    .flatpickr-day.today{ box-shadow: inset 0 0 0 2px var(--accent); color:var(--light); }
+    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange{
+      background:var(--accent); color:var(--bg);
+    }
+
+    /* Change day of the week color to white */
+    .flatpickr-weekday {
+      color: #FFFFFF; /* Set day of the week text color to white */
+    }
+
+    /* Change year picker arrows to white */
+    .flatpickr-current-month .flatpickr-prev-month,
+    .flatpickr-current-month .flatpickr-next-month {
+      color: #FFFFFF; /* Set arrow color to white */
+    }
+
+    .flatpickr-current-month .flatpickr-prev-month:hover,
+    .flatpickr-current-month .flatpickr-next-month:hover {
+      color: #CCCCCC; /* Slightly lighter shade on hover */
+    }
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-  <main class="w-full max-w-2xl">
-    <div class="mb-6 text-center">
-      <h1 class="text-3xl font-bold tracking-tight">
-        <span class="accent-text">Iron</span>Pump
-      </h1>
-      <p class="text-sm text-muted mt-1">Create your account</p>
+<body class="min-h-[100svh] flex items-start justify-center p-3 md:p-4">
+  <main class="w-full max-w-[800px]">
+    <div class="mb-3 text-center">
+      <h1 class="title font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
+      <p class="text-xs text-muted mt-1">Create your account</p>
     </div>
 
-    <section class="panel rounded-2xl p-6">
-      <form id="signupForm" class="space-y-4" novalidate>
+    <section class="panel rounded-xl p-3.5">
+      <form id="signupForm" class="stack" style="gap:var(--gap-md)" novalidate>
         <!-- Auth block -->
-        <div class="grid-2">
-          <div>
-            <label class="block text-sm mb-1">Email</label>
-            <input id="email" type="email" required class="input" placeholder="you@example.com" autocomplete="email"/>
+        <div class="form-grid">
+          <div class="stack">
+            <label for="email">Email</label>
+            <input id="email" type="email" required
+              pattern="^[^@\s]+@[^@\s]+\.[^@\s]+$"
+              autocapitalize="none" autocomplete="email" spellcheck="false" autocorrect="off"
+              class="input" placeholder="you@example.com"/>
           </div>
-          <div class="relative">
-            <label class="block text-sm mb-1">Password</label>
-            <input id="password" type="password" required class="input pr-10" placeholder="••••••••" autocomplete="new-password" minlength="6"/>
-            <button type="button" id="togglePw" class="absolute right-2 top-8 p-1 text-muted" aria-label="Toggle password">
-              <i data-feather="eye"></i>
-            </button>
+          <div class="stack">
+            <label for="password">Password</label>
+            <div class="relative">
+              <input id="password" type="password" required minlength="6" pattern="^\S+$"
+                class="input pr-10" placeholder="••••••••" autocomplete="new-password"/>
+              <button type="button" id="togglePw"
+                class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted"
+                aria-label="Toggle password" style="line-height:0">
+                <i data-feather="eye" class="w-4 h-4"></i>
+              </button>
+            </div>
           </div>
-          <div>
-            <label class="block text-sm mb-1">Confirm Password</label>
-            <input id="password2" type="password" required class="input" placeholder="Repeat password" autocomplete="new-password"/>
+          <div class="stack">
+            <label for="password2">Confirm Password</label>
+            <input id="password2" type="password" required pattern="^\S+$"
+              class="input" placeholder="Repeat password" autocomplete="new-password"/>
           </div>
-          <div>
-            <label class="block text-sm mb-1">Full Name</label>
-            <input id="fullName" type="text" class="input" placeholder="Your name"/>
+          <div class="stack">
+            <label for="fullName">Full Name</label>
+            <input id="fullName" type="text"
+              pattern="^[A-Za-z\u0600-\u06FF\s]{2,}$"
+              title="Only letters and spaces are allowed"
+              class="input" placeholder="Your name" autocomplete="name"/>
+          </div>
+          <div class="stack">
+            <label for="dob">Date of Birth</label>
+            <input id="dob" type="date" class="input" required
+              min="1900-01-01" max="2025-12-31" placeholder="YYYY-MM-DD"/>
+            <small class="help">Click to open the calendar.</small>
           </div>
         </div>
 
         <!-- Profile image -->
-        <div>
-          <label class="block text-sm mb-1">Profile Picture</label>
+        <div class="stack">
+          <label for="photo">Profile Picture</label>
           <input id="photo" type="file" accept="image/*" class="input"/>
-          <p class="text-xs text-muted mt-1">Optional. JPG/PNG recommended (≤ 5 MB).</p>
+          <small>Optional. JPG/PNG ≤ 5 MB.</small>
         </div>
 
         <!-- Stats -->
-        <div class="grid-2">
-          <div>
-            <label class="block text-sm mb-1">Phone Number</label>
-            <input id="phone" type="tel" class="input" placeholder="+1 555 555 5555"/>
+        <div class="form-grid">
+          <div class="stack">
+            <label for="phone">Phone Number</label>
+            <input id="phone" type="tel" inputmode="tel" maxlength="17"
+              pattern="^\+?[0-9][0-9\s\-]{5,14}$"
+              title="Digits only (6–15), spaces and - allowed, optional + at start"
+              class="input" placeholder="+961 71 234 567"/>
           </div>
-          <div>
-            <label class="block text-sm mb-1">Age</label>
-            <input id="age" type="number" min="10" max="100" class="input" placeholder="Age"/>
+          <div class="stack">
+            <label for="height">Height (cm)</label>
+            <input id="height" type="number" min="100" max="250" step="1" inputmode="numeric"
+              class="input" placeholder="e.g. 178"/>
           </div>
-          <div>
-            <label class="block text-sm mb-1">Height (cm)</label>
-            <input id="height" type="number" min="100" max="250" class="input" placeholder="e.g. 178"/>
-          </div>
-          <div>
-            <label class="block text-sm mb-1">Weight (kg)</label>
-            <input id="weight" type="number" min="30" max="300" class="input" placeholder="e.g. 75"/>
+          <div class="stack">
+            <label for="weight">Weight (kg)</label>
+            <input id="weight" type="number" min="30" max="300" step="0.1" inputmode="decimal"
+              class="input" placeholder="e.g. 75"/>
           </div>
         </div>
 
         <!-- Preferences -->
-        <div class="grid-2">
-          <div>
-            <label class="block text-sm mb-1">Country</label>
-            <input id="country" type="text" class="input" placeholder="Country"/>
+        <div class="form-grid">
+          <div class="stack">
+            <label for="country">Country</label>
+            <select id="country" class="input">
+              <option value="" selected disabled>Select Country</option>
+              <option value="Lebanon">🇱🇧 Lebanon</option>
+              <option value="Saudi Arabia">🇸🇦 Saudi Arabia</option>
+              <option value="UAE">🇦🇪 United Arab Emirates</option>
+              <option value="Qatar">🇶🇦 Qatar</option>
+              <option value="Kuwait">🇰🇼 Kuwait</option>
+              <option value="Bahrain">🇧🇭 Bahrain</option>
+              <option value="Oman">🇴🇲 Oman</option>
+              <option value="Egypt">🇪🇬 Egypt</option>
+              <option value="Jordan">🇯🇴 Jordan</option>
+              <option value="Syria">🇸🇾 Syria</option>
+              <option value="Iraq">🇮🇶 Iraq</option>
+              <option value="Yemen">🇾🇪 Yemen</option>
+              <option value="Morocco">🇲🇦 Morocco</option>
+              <option value="Algeria">🇩🇿 Algeria</option>
+              <option value="Tunisia">🇹🇳 Tunisia</option>
+              <option value="Libya">🇱🇾 Libya</option>
+              <option value="Sudan">🇸🇩 Sudan</option>
+              <option value="Palestine">🇵🇸 Palestine</option>
+            </select>
           </div>
-          <div>
-            <label class="block text-sm mb-1">Languages (comma-separated)</label>
-            <input id="languages" type="text" class="input" placeholder="English, Arabic"/>
+
+          <div class="stack">
+            <label for="languages">Languages (comma-separated)</label>
+            <input id="languages" type="text"
+              pattern="^[A-Za-z\u0600-\u06FF,\s]+$"
+              title="Only letters (Arabic/Latin), commas and spaces"
+              class="input" placeholder="English, Arabic"/>
           </div>
-          <div>
-            <label class="block text-sm mb-1">Training Location</label>
+
+          <div class="stack">
+            <label>Training Location</label>
             <div class="flex gap-3">
-              <label class="inline-flex items-center gap-2">
-                <input type="radio" name="where" value="home" checked>
-                <span>Home</span>
-              </label>
-              <label class="inline-flex items-center gap-2">
-                <input type="radio" name="where" value="gym">
-                <span>Gym</span>
-              </label>
+              <label class="inline-flex items-center gap-2"><input type="radio" name="where" value="home" checked><span>Home</span></label>
+              <label class="inline-flex items-center gap-2"><input type="radio" name="where" value="gym"><span>Gym</span></label>
             </div>
           </div>
-          <div>
-            <label class="block text-sm mb-1">Days/Week</label>
-            <select id="days" class="input">
-              <option value="3">3</option>
-              <option value="4" selected>4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
-              <option value="7">7</option>
-            </select>
+
+          <div class="stack">
+            <label class="text-xs">Days per Week</label>
+            <div id="daysSelector" class="flex flex-wrap gap-2">
+              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="1">1</button>
+              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="2">2</button>
+              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="3">3</button>
+              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="4">4</button>
+              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="5">5</button>
+              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="6">6</button>
+              <button type="button" class="day-btn btn-ghost px-3 py-1.5 rounded-md text-sm" data-value="7">7</button>
+            </div>
+            <input type="hidden" id="days" value="4">
+            <small id="daysHint">Selected: 4 days/week</small>
           </div>
         </div>
 
-        <div>
-          <label class="block text-sm mb-1">Additional Info</label>
+        <div class="stack">
+          <label for="extra" class="text-xs">Additional Info</label>
           <textarea id="extra" rows="3" class="input" placeholder="Any injuries, goals, notes…"></textarea>
         </div>
 
-        <button id="createBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
+        <button id="createBtn" class="w-full btn-accent py-2 rounded-lg font-medium flex items-center justify-center gap-2">
           <i data-feather="user-plus" class="w-4 h-4"></i><span>Create Account</span>
         </button>
 
-        <p class="text-sm text-center">
-          Already have an account?
+        <p id="status" class="text-[12px] h-4"></p>
+
+        <!-- Email verification panel -->
+        <div id="verifyPanel" class="hidden p-3 rounded-xl border border-[rgba(144,144,144,0.35)] bg-[#171717]">
+          <div class="flex items-start gap-2.5">
+            <div class="spinner" aria-hidden="true"></div>
+            <div class="flex-1">
+              <p class="font-semibold text-sm">Check your inbox to verify your email</p>
+              <p class="text-xs text-muted mt-1">We sent a verification link to <span id="vEmail" class="font-medium"></span>. Once you verify, you’ll be redirected to your dashboard.</p>
+              <div class="flex flex-wrap gap-2 mt-2">
+                <button type="button" id="btnCheck" class="btn-accent px-2.5 py-1.5 rounded-lg font-medium text-sm">I’ve verified</button>
+                <button type="button" id="btnResend" class="btn-ghost px-2.5 py-1.5 rounded-lg font-medium text-sm">Resend email</button>
+                <button type="button" id="btnChangeEmail" class="btn-ghost px-2.5 py-1.5 rounded-lg font-medium text-sm">Use a different email</button>
+              </div>
+              <p id="verifyHint" class="text-[11px] text-muted mt-2">Tip: Sometimes it lands in Spam/Promotions.</p>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-xs text-center">Already have an account?
           <a href="login.html" class="accent-text hover:underline">Log in</a>
         </p>
-
-        <p id="status" class="text-sm mt-1 h-5"></p>
       </form>
     </section>
 
-    <p class="text-center text-xs text-muted mt-4">
-      By registering you agree to our Terms & Privacy Policy.
-    </p>
+    <p class="text-[11px] text-center text-muted mt-3">By registering you agree to our Terms & Privacy Policy.</p>
   </main>
 
   <script>
     feather.replace();
 
-    // ---- Firebase init (guard against double init) ----
+    // Firebase init
     const firebaseConfig = {
       apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
       authDomain: "ironpump-gym-tracker.firebaseapp.com",
@@ -186,13 +338,12 @@
     const db = firebase.firestore();
     const storage = firebase.storage();
 
-    // If already signed in, head to index
-    auth.onAuthStateChanged(u => { if(u) location.href = 'index.html'; });
+    // Helpers
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $('status');
 
-    // UI refs
-    const statusEl = document.getElementById('status');
-    const createBtn = document.getElementById('createBtn');
     function setLoading(b){
+      const createBtn = $('createBtn');
       createBtn.disabled = b;
       createBtn.style.opacity = b ? .7 : 1;
       statusEl.textContent = b ? 'Creating account…' : '';
@@ -201,49 +352,125 @@
     function showError(m){ statusEl.textContent = m; statusEl.style.color = '#ff6b6b'; }
     function showSuccess(m){ statusEl.textContent = m; statusEl.style.color = 'var(--accent)'; }
 
-    // Toggle password visibility
-    document.getElementById('togglePw').addEventListener('click', () => {
-      const pw = document.getElementById('password');
-      const t = pw.type === 'password' ? 'text' : 'password';
-      pw.type = t;
-      const icon = t === 'password' ? 'eye' : 'eye-off';
-      document.querySelector('#togglePw i').setAttribute('data-feather', icon);
+    // Eye toggle
+    const togglePwBtn = $('togglePw');
+    togglePwBtn.addEventListener('click', () => {
+      const pw = $('password');
+      const isPassword = pw.type === 'password';
+      pw.type = isPassword ? 'text' : 'password';
+      togglePwBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      const icon = isPassword ? 'eye-off' : 'eye';
+      togglePwBtn.querySelector('i').setAttribute('data-feather', icon);
       feather.replace();
     });
 
-    // Sign up handler
+    // Live sanitizers
+    $('phone').addEventListener('input', (e) => {
+      let v = e.target.value;
+      v = v.replace(/[^\d+\s-]/g, '').replace(/(?!^)\+/g, '');
+      e.target.value = v;
+    });
+    $('fullName').addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF\s]/g, '');
+    });
+    $('languages').addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF,\s]/g, '');
+    });
+
+    // Confirm password validity
+    function syncPasswordMatch(){
+      const p1 = $('password').value;
+      const p2 = $('password2');
+      if (p2.value && p1 !== p2.value) p2.setCustomValidity('Passwords do not match.');
+      else p2.setCustomValidity('');
+    }
+    $('password').addEventListener('input', syncPasswordMatch);
+    $('password2').addEventListener('input', syncPasswordMatch);
+
+    // Auth gate
+    auth.onAuthStateChanged(async (u) => {
+      if (!u) return;
+      try { await u.reload(); } catch {}
+      if (u.emailVerified) {
+        location.href = 'index.html';
+      } else {
+        showVerifyPanel(u.email);
+      }
+    });
+
+    function showVerifyPanel(email){
+      $('vEmail')?.remove(); // ensure unique
+      const span = document.createElement('span');
+      span.id = 'vEmail'; span.className = 'font-medium';
+      span.textContent = email || '';
+      const p = document.querySelector('#verifyPanel .text-muted');
+      if (p) {
+        const container = p.querySelector('#vEmail') ? p : p.parentElement;
+        const target = document.getElementById('vEmail') || span;
+        if (!document.getElementById('vEmail')) p.querySelector('span.font-medium')?.replaceWith(span);
+      }
+      document.getElementById('verifyPanel').classList.remove('hidden');
+      const hint = document.getElementById('verifyHint');
+      if (hint) { hint.textContent = 'Tip: Sometimes it lands in Spam/Promotions.'; hint.style.color = 'var(--muted)'; }
+    }
+    function hideVerifyPanel(){ document.getElementById('verifyPanel').classList.add('hidden'); }
+
+    // Days segmented control
+    const buttons = document.querySelectorAll('.day-btn');
+    const daysField = $('days');
+    const daysHint = $('daysHint');
+    function setActive(value) {
+      buttons.forEach(btn => {
+        const active = btn.dataset.value === value;
+        btn.classList.toggle('btn-accent', active);
+        btn.classList.toggle('btn-ghost', !active);
+      });
+      daysField.value = value;
+      daysHint.textContent = `Selected: ${value} day${value === '1' ? '' : 's'}/week`;
+    }
+    buttons.forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.value)));
+    setActive('4');
+
+    // Submit
     document.getElementById('signupForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      // Gather values
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      const password2 = document.getElementById('password2').value;
-      const fullName = document.getElementById('fullName').value.trim();
-      const phone = document.getElementById('phone').value.trim();
-      const age = Number(document.getElementById('age').value || 0);
-      const height = Number(document.getElementById('height').value || 0);
-      const weight = Number(document.getElementById('weight').value || 0);
-      const country = document.getElementById('country').value.trim();
-      const languages = document.getElementById('languages').value.trim();
-      const where = (document.querySelector('input[name="where"]:checked') || {}).value || 'home';
-      const days = Number(document.getElementById('days').value || 4);
-      const extra = document.getElementById('extra').value.trim();
-      const photoFile = document.getElementById('photo').files[0];
+      ['email','fullName','phone','languages','extra'].forEach(id => {
+        const el = $(id); if (el && typeof el.value === 'string') el.value = el.value.trim();
+      });
 
-      // Basic validation
-      if (!email || !password) return showError('Email and password are required.');
-      if (password !== password2) return showError('Passwords do not match.');
-      if (password.length < 6) return showError('Password must be at least 6 characters.');
+      syncPasswordMatch();
+      if (!e.target.checkValidity()) {
+        e.target.reportValidity();
+        showError('Please fix the highlighted fields.');
+        return;
+      }
+
+      const email = $('email').value;
+      const password = $('password').value;
+      const password2 = $('password2').value;
+      const fullName = $('fullName').value;
+      const phone = $('phone').value;
+      const height = Number($('height').value || 0);
+      const weight = Number($('weight').value || 0);
+      const dob = $('dob').value;
+      const country = $('country').value.trim();
+      const languages = $('languages').value.trim();
+      const where = (document.querySelector('input[name="where"]:checked') || {}).value || 'home';
+      const days = Number($('days').value || 4);
+      const extra = $('extra').value.trim();
+      const photoFile = $('photo').files[0];
+
+      if (password !== password2) { showError('Passwords do not match.'); return; }
+      if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
 
       try{
         setLoading(true);
 
-        // 1) Create user
         const cred = await auth.createUserWithEmailAndPassword(email, password);
         const uid = cred.user.uid;
 
-        // 2) Upload photo if provided
+        // Photo
         let photoURL = '';
         if (photoFile) {
           if (photoFile.size > 5 * 1024 * 1024) throw new Error('Image too large (max 5 MB).');
@@ -255,45 +482,100 @@
           await cred.user.updateProfile({ displayName: fullName || '' });
         }
 
-        // 3) Save profile in Firestore (field names aligned with trainer-dashboard)
+        // Save profile
         await db.collection('users').doc(uid).set({
           role: 'client',
-          email,
-          fullName,
-          phone,
-          age,
-          height,                 // <— matches dashboard
-          weight,                 // <— matches dashboard
-          country,
+          email, fullName, phone, height, weight, dateOfBirth: dob, country,
           languages: languages ? languages.split(',').map(s=>s.trim()).filter(Boolean) : [],
-          trainingPlace: where,   // <— matches dashboard (not "trainingLocation")
+          trainingPlace: where,
           daysPerWeek: days,
-          additionalInfo: extra,  // <— matches dashboard (not "extra")
+          additionalInfo: extra,
           photoURL,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        showSuccess('Account created! Redirecting…');
-        setTimeout(()=> location.href = 'index.html', 700);
+        await cred.user.sendEmailVerification();
+
+        showSuccess('Account created! Check your email to verify.');
+        document.getElementById('verifyPanel').classList.remove('hidden');
+        startVerificationPolling();
 
       }catch(err){
         console.error(err);
         showError(prettyAuthError(err));
+      }finally{
         setLoading(false);
       }
     });
 
-    function prettyAuthError(err){
-      const code = err && err.code ? String(err.code) : '';
-      switch(code){
-        case 'auth/email-already-in-use': return 'Email is already registered.';
-        case 'auth/invalid-email': return 'Invalid email address.';
-        case 'auth/operation-not-allowed': return 'Email/password sign-in is disabled in Firebase Auth.';
-        case 'auth/weak-password': return 'Password is too weak.';
-        default: return err.message || 'Sign up failed.';
+    let pollTimer = null;
+    async function checkVerificationOnce(){
+      const u = auth.currentUser;
+      if (!u) return;
+      try { await u.reload(); } catch {}
+      if (u.emailVerified) {
+        hideVerifyPanel();
+        showSuccess('Email verified! Redirecting to your dashboard…');
+        setTimeout(() => location.href = 'index.html', 600);
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       }
     }
+    function startVerificationPolling(){
+      if (pollTimer) return;
+      pollTimer = setInterval(checkVerificationOnce, 6000);
+    }
+    document.getElementById('btnCheck').addEventListener('click', checkVerificationOnce);
+    document.getElementById('btnResend').addEventListener('click', async () => {
+      const u = auth.currentUser;
+      try {
+        await u.sendEmailVerification();
+        const hint = document.getElementById('verifyHint');
+        hint.textContent = 'Verification email sent again.';
+        hint.style.color = 'var(--accent)';
+      } catch {
+        const hint = document.getElementById('verifyHint');
+        hint.textContent = 'Could not resend. Please try again later.';
+        hint.style.color = '#ff6b6b';
+      }
+    });
+    document.getElementById('btnChangeEmail').addEventListener('click', async () => {
+      try { await auth.signOut(); } catch {}
+      location.reload();
+    });
+
+    function prettyAuthError(err){
+      const code = String(err?.code || '');
+      if (code.startsWith('auth/')) {
+        switch (code) {
+          case 'auth/email-already-in-use': return 'Email is already registered.';
+          case 'auth/invalid-email': return 'Invalid email address.';
+          case 'auth/operation-not-allowed': return 'Email/password sign-in is disabled.';
+          case 'auth/weak-password': return 'Password is too weak.';
+          default: return err.message || 'Sign up failed. Please try again.';
+        }
+      }
+      if (code.startsWith('storage/')) {
+        if (code.includes('unauthorized')) return 'You don’t have permission to upload this image.';
+        if (code.includes('canceled')) return 'Image upload was canceled.';
+        return 'Image upload failed. Try another image.';
+      }
+      if (code.includes('permission-denied')) return 'You don’t have permission to save your profile.';
+      return err.message || 'Something went wrong. Please try again.';
+    }
+
+    /* ========= Initialize Option B if available; fallback is Option A ========= */
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.flatpickr) {
+        flatpickr("#dob", {
+          dateFormat: "Y-m-d",
+          minDate: "1900-01-01",
+          maxDate: "today",
+          allowInput: true,
+          disableMobile: true   // keep the themed popup on mobile too
+        });
+      }
+    });
   </script>
 </body>
 </html>

@@ -5,12 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login — IronPump</title>
 
-  <!-- Tailwind + Icons -->
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Your modular Firebase init (v12) -->
-  <script type="module" src="./firebase-init.js"></script>
+  <!-- Firebase -->
+  <script type="module" src="firebase-init.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -25,16 +34,24 @@
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
+
     /* Segmented role switch */
     .seg { display:flex; background:#1b1b1b; border:1px solid rgba(144,144,144,.35); border-radius:9999px; padding:4px; gap:4px; }
     .seg button { flex:1; padding:.5rem .75rem; border-radius:9999px; font-weight:600; color:var(--light); background:transparent; border:none; cursor:pointer; }
     .seg button.active { background:var(--accent); color:var(--bg); box-shadow:0 0 10px rgba(151,251,87,.35) inset; }
+
+    /* Logo */
+    .logo { width: 80px; height: auto; margin: 0 auto 10px; display:block; }
+
+    /* Status area */
+    #status { color: var(--muted); min-height: 1.25rem; } /* keeps layout stable */
   </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
   <main class="w-full max-w-md">
     <!-- Header -->
     <div class="text-center mb-2">
+      <img src="ironpump.png" alt="IronPump Logo" class="logo">
       <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
     </div>
     <p class="text-sm text-muted text-center mb-6">Choose your role and log in to your account.</p>
@@ -44,8 +61,10 @@
       <div class="mb-4">
         <label class="block text-sm mb-2">Log in as</label>
         <div class="seg" role="tablist" aria-label="Login role">
-          <button type="button" id="roleClient" class="active" aria-selected="true" role="tab">Client</button>
-          <button type="button" id="roleTrainer" aria-selected="false" role="tab">Trainer</button>
+          <button type="button" id="roleClient" class="active" role="tab"
+                  aria-selected="true" aria-controls="loginForm">Client</button>
+          <button type="button" id="roleTrainer" role="tab"
+                  aria-selected="false" aria-controls="loginForm">Trainer</button>
         </div>
         <p class="text-xs text-muted mt-2" id="roleHint">You’re logging in as <span class="accent-text font-semibold">Client</span>.</p>
       </div>
@@ -60,11 +79,11 @@
         <div>
           <div class="flex items-center justify-between mb-1">
             <label for="password" class="block text-sm">Password</label>
-            <button type="button" id="forgotBtn" class="text-xs accent-text hover:underline">Forgot password?</button>
+            <button type="button" id="forgotBtn" class="text-sm accent-text hover:underline">Forgot password?</button>
           </div>
           <div class="relative">
             <input id="password" type="password" required class="input pr-10" placeholder="••••••••" autocomplete="current-password"/>
-            <button type="button" id="togglePw" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Toggle password">
+            <button type="button" id="togglePw" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Show password">
               <i data-feather="eye"></i>
             </button>
           </div>
@@ -75,7 +94,6 @@
             <input id="remember" type="checkbox" class="accent-[var(--accent)]">
             <span>Remember me</span>
           </label>
-          <!-- Conditional register links -->
           <a href="signup.html" id="registerClient" class="text-sm accent-text hover:underline">Are you a client? Register here</a>
           <a href="signup-trainer.html" id="registerTrainer" class="text-sm accent-text hover:underline hidden">Are you a trainer? Register here</a>
         </div>
@@ -84,8 +102,7 @@
           <i data-feather="log-in" class="w-4 h-4"></i><span>Log In</span>
         </button>
 
-        <!-- Status -->
-        <p id="status" class="text-sm mt-2 h-5"></p>
+        <p id="status" class="text-sm mt-2"></p>
       </form>
     </section>
 
@@ -94,22 +111,29 @@
     </p>
   </main>
 
-  <!-- App logic (modular Firebase v12) -->
-  <script type="module">
+  <script>
     feather.replace();
 
-    import { auth, db } from './firebase-init.js';
-    import {
-      setPersistence,
-      browserLocalPersistence,
-      browserSessionPersistence,
-      onAuthStateChanged,
-      signInWithEmailAndPassword,
-      sendPasswordResetEmail,
-    } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
-    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+    // Warn if run from file://
+    if (location.protocol === 'file:') {
+      console.warn('[IronPump] Firebase Auth may fail on file://. Serve over http(s) and whitelist domain in Firebase.');
+    }
 
-    // ---------- Role UI ----------
+    // Firebase init
+    const firebaseConfig = {
+      apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
+      authDomain: "ironpump-gym-tracker.firebaseapp.com",
+      projectId: "ironpump-gym-tracker",
+      storageBucket: "ironpump-gym-tracker.firebasestorage.app",
+      messagingSenderId: "267000647709",
+      appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
+      measurementId: "G-BG3TDDWXZH"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+
+    // Role UI logic
     let chosenRole = sessionStorage.getItem('ironpump_chosenRole') || 'client';
     const roleClientBtn = document.getElementById('roleClient');
     const roleTrainerBtn = document.getElementById('roleTrainer');
@@ -117,8 +141,10 @@
     const regClient = document.getElementById('registerClient');
     const regTrainer = document.getElementById('registerTrainer');
 
-    function renderRoleUI() {
-      const isClient = chosenRole === 'client';
+    function setRole(role){
+      const isClient = role === 'client';
+      chosenRole = role;
+      sessionStorage.setItem('ironpump_chosenRole', chosenRole);
       roleClientBtn.classList.toggle('active', isClient);
       roleTrainerBtn.classList.toggle('active', !isClient);
       roleClientBtn.setAttribute('aria-selected', String(isClient));
@@ -127,112 +153,102 @@
       regClient.classList.toggle('hidden', !isClient);
       regTrainer.classList.toggle('hidden', isClient);
     }
-    roleClientBtn.addEventListener('click', () => { chosenRole = 'client'; sessionStorage.setItem('ironpump_chosenRole', chosenRole); renderRoleUI(); });
-    roleTrainerBtn.addEventListener('click', () => { chosenRole = 'trainer'; sessionStorage.setItem('ironpump_chosenRole', chosenRole); renderRoleUI(); });
-    renderRoleUI();
+    roleClientBtn.addEventListener('click', () => setRole('client'));
+    roleTrainerBtn.addEventListener('click', () => setRole('trainer'));
+    document.querySelector('.seg').addEventListener('keydown', (e) => {
+      if (!['ArrowLeft','ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      (document.activeElement.id === 'roleClient' ? roleTrainerBtn : roleClientBtn).focus();
+    });
+    setRole(chosenRole);
 
-    // ---------- Role helpers ----------
-    const DEBUG = true;
-
-    async function fetchUserRoles(uid) {
-      try {
-        const snap = await getDoc(doc(db, 'users', uid));
-        if (!snap.exists()) return { roles: [], raw: null };
-        const data = snap.data() || {};
-        let roles = Array.isArray(data.roles)
-          ? data.roles.map(r => String(r || '').toLowerCase())
-          : data.role ? [String(data.role).toLowerCase()] : [];
-        roles = Array.from(new Set(roles.filter(r => r === 'client' || r === 'trainer')));
-        if (DEBUG) console.log('[login] fetchUserRoles', { uid, roles, data });
-        return { roles, raw: data };
-      } catch (e) {
-        console.error('[login] fetchUserRoles error:', e);
-        return { roles: [], raw: null };
-      }
+    // Friendly errors
+    function friendlyAuthError(err){
+      const code = err?.code || '';
+      if (code.includes('invalid-credential')) return 'Email or password is incorrect.';
+      if (code.includes('user-not-found')) return 'No account found with that email.';
+      if (code.includes('wrong-password')) return 'Email or password is incorrect.';
+      if (code.includes('too-many-requests')) return 'Too many attempts. Please try again later.';
+      if (code.includes('network-request-failed')) return 'Network error. Check your connection.';
+      return 'Something went wrong. Please try again.';
     }
 
+    // Routing
     function userHasRole(roles, role) {
-      if (!roles || roles.length === 0) return role === 'client'; // legacy default
+      if (!roles || !roles.length) return role === 'client';
       return roles.includes(role);
     }
-
     function routeFor(role) {
       const next = new URLSearchParams(location.search).get('next');
       return role === 'trainer' ? (next || 'trainer-dashboard.html') : (next || 'index.html');
     }
-
+    async function fetchUserRoles(uid) {
+      try {
+        const snap = await db.collection('users').doc(uid).get();
+        if (!snap.exists) return { roles: [] };
+        const data = snap.data() || {};
+        let roles = Array.isArray(data.roles) ? data.roles.map(r => String(r).toLowerCase()) : [String(data.role || 'client').toLowerCase()];
+        return { roles };
+      } catch { return { roles: [] }; }
+    }
     async function routeAfterLogin(uid) {
+      const statusEl = document.getElementById('status');
       const { roles } = await fetchUserRoles(uid);
-      if (userHasRole(roles, chosenRole)) {
-        if (DEBUG) console.log('[login] routing as', chosenRole);
-        location.replace(routeFor(chosenRole));
-      } else {
-        showError(`You don't have ${chosenRole} access.`);
+      if (userHasRole(roles, chosenRole)) location.replace(routeFor(chosenRole));
+      else {
+        statusEl.style.color = '#ff6b6b';
+        statusEl.textContent = `You don't have ${chosenRole} access. Switch role or contact your trainer/admin.`;
       }
     }
 
-    // ---------- UI helpers ----------
+    // Auth
+    auth.onAuthStateChanged(async (u) => { if (u) await routeAfterLogin(u.uid); });
+
     const emailEl = document.getElementById('email');
     const pwEl = document.getElementById('password');
     const rememberEl = document.getElementById('remember');
     const statusEl = document.getElementById('status');
     const loginBtn = document.getElementById('loginBtn');
+    const togglePwBtn = document.getElementById('togglePw');
 
-    function setLoading(isLoading){
-      loginBtn.disabled = isLoading;
-      loginBtn.style.opacity = isLoading ? 0.7 : 1;
-      statusEl.textContent = isLoading ? 'Signing in…' : '';
-      statusEl.style.color = isLoading ? 'var(--muted)' : '';
-    }
-    function showError(msg){ statusEl.textContent = msg; statusEl.style.color = '#ff6b6b'; }
-    function showSuccess(msg){ statusEl.textContent = msg; statusEl.style.color = 'var(--accent)'; }
-
-    // Toggle password visibility
-    document.getElementById('togglePw').addEventListener('click', () => {
-      const t = pwEl.type === 'password' ? 'text' : 'password';
-      pwEl.type = t;
-      const icon = t === 'password' ? 'eye' : 'eye-off';
+    togglePwBtn.addEventListener('click', () => {
+      const isPassword = pwEl.type === 'password';
+      pwEl.type = isPassword ? 'text' : 'password';
+      const icon = isPassword ? 'eye-off' : 'eye';
+      togglePwBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
       document.querySelector('#togglePw i').setAttribute('data-feather', icon);
       feather.replace();
     });
 
-    // Forgot password
     document.getElementById('forgotBtn').addEventListener('click', async () => {
-      const email = (emailEl.value || '').trim();
-      if (!email) { showError('Enter your email first.'); return; }
-      try{
-        await sendPasswordResetEmail(auth, email);
-        showSuccess('Password reset email sent.');
-      }catch(err){
-        showError(err.message || 'Error sending reset email.');
+      const email = emailEl.value.trim();
+      if (!email) { statusEl.textContent = 'Enter your email first.'; return; }
+      try {
+        await auth.sendPasswordResetEmail(email);
+        statusEl.textContent = 'Password reset email sent.';
+        statusEl.style.color = 'var(--accent)';
+      } catch (e) {
+        statusEl.style.color = '#ff6b6b';
+        statusEl.textContent = friendlyAuthError(e);
       }
     });
 
-    // Auth state
-    onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        if (DEBUG) console.log('[login] onAuthStateChanged:', u.uid);
-        await routeAfterLogin(u.uid);
-      }
-    });
-
-    // Login submit
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = (emailEl.value || '').trim();
-      const pass  = pwEl.value || '';
-
-      if (!email || !pass) { showError('Please fill in email and password.'); return; }
-
-      try{
-        setLoading(true);
-        await setPersistence(auth, rememberEl.checked ? browserLocalPersistence : browserSessionPersistence);
-        const { user } = await signInWithEmailAndPassword(auth, email, pass);
+      const email = emailEl.value.trim();
+      const pass = pwEl.value;
+      if (!email || !pass) { statusEl.textContent = 'Please fill in email and password.'; return; }
+      try {
+        loginBtn.disabled = true;
+        await auth.setPersistence(rememberEl.checked ? firebase.auth.Auth.Persistence.LOCAL
+                                                    : firebase.auth.Auth.Persistence.SESSION);
+        const { user } = await auth.signInWithEmailAndPassword(email, pass);
         await routeAfterLogin(user.uid);
-      }catch(err){
-        showError(err.message || 'Authentication error.');
+      } catch (err) {
+        statusEl.textContent = friendlyAuthError(err);
+        statusEl.style.color = '#ff6b6b';
       } finally {
-        setLoading(false);
+        loginBtn.disabled = false;
       }
     });
   </script>
