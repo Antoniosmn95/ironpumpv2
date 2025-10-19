@@ -293,22 +293,16 @@
     feather.replace();
 
     import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
-    import {
-      getAuth, createUserWithEmailAndPassword, onAuthStateChanged, updateProfile, reload
-    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-    import {
-      getFirestore, doc, setDoc, serverTimestamp
-    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
-    import {
-      getStorage, ref, uploadBytes, getDownloadURL
-    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
+    import { getAuth, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged, reload } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+    import { getFirestore, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
 
-    // Single initialized app (from firebase-init.js)
+    // Singletons
     const auth    = exportedAuth || getAuth(app);
     const db      = exportedDb   || getFirestore(app);
     const storage = getStorage(app);
 
-    // Just-signed-up key so AuthGuard / onAuth doesn't pre-redirect during overlay
+    // Prevent auth state auto-redirect during the overlay
     const JUST_KEY = 'ironpump_trainer_justSignedUp';
 
     // Helpers
@@ -323,16 +317,7 @@
     }
     function showError(m){ statusEl.textContent = m; statusEl.style.color = '#ff6b6b'; }
 
-    // Toggle password visibility
-    $('togglePw').addEventListener('click', () => {
-      const pw = $('password');
-      const isPassword = pw.type === 'password';
-      pw.type = isPassword ? 'text' : 'password';
-      const iconEl = $('togglePw').querySelector('i');
-      if (iconEl){ iconEl.setAttribute('data-feather', isPassword ? 'eye-off' : 'eye'); feather.replace(); }
-    });
-
-    // Sanitizers
+    // Niceties / sanitizers
     $('email').addEventListener('input', e => { e.target.value = e.target.value.replace(/\s+/g, ''); });
     $('email').addEventListener('blur',  e => { e.target.value = e.target.value.trim(); });
     $('phone').addEventListener('input', (e) => {
@@ -343,6 +328,15 @@
     });
     $('languages').addEventListener('input', (e) => {
       e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF,\s]/g, '');
+    });
+
+    // Password eye toggle
+    $('togglePw')?.addEventListener('click', () => {
+      const pw = $('password');
+      const isPassword = pw.type === 'password';
+      pw.type = isPassword ? 'text' : 'password';
+      const icon = $('togglePw').querySelector('i');
+      if (icon){ icon.setAttribute('data-feather', isPassword ? 'eye-off' : 'eye'); feather.replace(); }
     });
 
     // Password match
@@ -356,10 +350,7 @@
     $('password2').addEventListener('input', syncPasswordMatch);
 
     // DoB max = today
-    (() => {
-      const d = $('dob');
-      if (d) d.max = new Date().toISOString().slice(0,10);
-    })();
+    (() => { const d = $('dob'); if (d) d.max = new Date().toISOString().slice(0,10); })();
 
     // If already signed in (fresh visit) and not just-signed-up → go to trainer dashboard
     onAuthStateChanged(auth, async (u) => {
@@ -369,14 +360,13 @@
       window.location.replace('trainer-dashboard.html');
     });
 
-    // Submit (create trainer and redirect with welcome overlay)
+    // Submit → create trainer with role=trainer, show overlay, redirect
     document.getElementById('signupForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      // Trim inputs
-      ['fullName','email','phone','languages','org','specialties','certs','bio','social','trainerCode'].forEach(id=>{
-        const el = $(id); if (el && typeof el.value === 'string') el.value = el.value.trim();
-      });
+      // Trim fields
+      ['fullName','email','phone','languages','org','specialties','certs','bio','social','trainerCode']
+        .forEach(id => { const el = $(id); if (el && typeof el.value === 'string') el.value = el.value.trim(); });
 
       syncPasswordMatch();
       if (!e.target.checkValidity()) {
@@ -406,13 +396,14 @@
       if (password !== password2) { showError('Passwords do not match.'); return; }
       if (password.length < 6)   { showError('Password must be at least 6 characters.'); return; }
 
-      try{
+      try {
         setLoading(true);
 
+        // 1) Auth user
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
 
-        // Photo (optional)
+        // 2) Optional photo upload
         let photoURL = '';
         if (photoFile) {
           if (photoFile.size > 5 * 1024 * 1024) throw new Error('Image too large (max 5 MB).');
@@ -421,10 +412,10 @@
           photoURL = await getDownloadURL(r);
         }
 
-        // Update auth profile
+        // 3) Update Auth profile
         await updateProfile(cred.user, { displayName: fullName, photoURL: photoURL || null });
 
-        // Save trainer doc (role=trainer)
+        // 4) Create Firestore user doc with role: 'trainer'
         await setDoc(doc(db, 'users', uid), {
           role: 'trainer',
           email,
@@ -446,37 +437,21 @@
           updatedAt: serverTimestamp()
         }, { merge: true });
 
-        // Show welcome overlay and redirect shortly
+        // 5) Show overlay & redirect
         sessionStorage.setItem(JUST_KEY, '1');
         const overlay = document.getElementById('welcomeOverlay');
         overlay.style.display = 'flex';
         setTimeout(() => {
           sessionStorage.removeItem(JUST_KEY);
           window.location.replace('trainer-dashboard.html');
-        }, 1400); // tweak duration if you want
-
-      }catch(err){
+        }, 1400);
+      } catch (err) {
         console.error(err);
-        showError(prettyAuthError(err));
-      }finally{
+        showError(err?.message || 'Sign up failed. Please try again.');
+      } finally {
         setLoading(false);
       }
     });
-
-    function prettyAuthError(err){
-      const code = String(err?.code || '');
-      if (code.startsWith('auth/')) {
-        switch (code) {
-          case 'auth/email-already-in-use': return 'Email is already registered.';
-          case 'auth/invalid-email': return 'Invalid email address.';
-          case 'auth/operation-not-allowed': return 'Email/password sign-in is disabled.';
-          case 'auth/weak-password': return 'Password is too weak.';
-          default: return err.message || 'Sign up failed. Please try again.';
-        }
-      }
-      if (code.includes('permission-denied')) return 'You don’t have permission to save your profile.';
-      return err.message || 'Something went wrong. Please try again.';
-    }
 
     // Flatpickr (optional)
     window.addEventListener('DOMContentLoaded', () => {
