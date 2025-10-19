@@ -45,6 +45,35 @@ function go(href) {
   window.location.replace(href);
 }
 
+// ---- Welcome/hold redirect support ----
+// When the signup page shows the welcome overlay, it sets this key so
+// we *don’t* auto-redirect away from signup immediately.
+const HOLD_KEY = "ironpump_welcome_hold_ms";
+// consider the hold valid only for a short window (e.g., 6 seconds)
+const HOLD_MAX_AGE_MS = 6000;
+
+function setHold(msFromNow = 1500) {
+  try {
+    const until = Date.now() + Math.max(0, msFromNow);
+    sessionStorage.setItem(HOLD_KEY, String(until));
+  } catch {}
+}
+function clearHold() {
+  try { sessionStorage.removeItem(HOLD_KEY); } catch {}
+}
+function isHoldActive() {
+  try {
+    const v = Number(sessionStorage.getItem(HOLD_KEY) || "0");
+    if (!v) return false;
+    const ageOk = v - Date.now();
+    if (ageOk <= -HOLD_MAX_AGE_MS) { clearHold(); return false; }
+    return Date.now() < v;
+  } catch { return false; }
+}
+
+// Expose a helper globally in case pages want to set the hold manually.
+window.__IronpumpHoldRedirect = { set: setHold, clear: clearHold, active: isHoldActive };
+
 // ---- Minimal event hub ----
 const listeners = new Set();
 let _currentUser = null;
@@ -132,12 +161,17 @@ function startGuard() {
     const role = normalizedRole(profile);
 
     // If on a public page (e.g., login/signup), bounce to the right dashboard
+    // ...unless a short hold is active (welcome overlay after signup).
     if (PUBLIC_PAGES.has(HERE)) {
-      const dest = routeForRole(role);
-      console.log(`[AuthGuard] Signed in on public page → ${dest}`);
-      go(dest);
-      if (_resolveAuthReady) { _resolveAuthReady(user); _resolveAuthReady = null; }
-      return;
+      if (isHoldActive()) {
+        console.log("[AuthGuard] Hold active — staying on public page briefly to show overlay.");
+      } else {
+        const dest = routeForRole(role);
+        console.log(`[AuthGuard] Signed in on public page → ${dest}`);
+        go(dest);
+        if (_resolveAuthReady) { _resolveAuthReady(user); _resolveAuthReady = null; }
+        return;
+      }
     }
 
     // If current page demands a specific role, enforce it
