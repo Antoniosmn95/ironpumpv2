@@ -12,6 +12,11 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
+  <!-- Firebase (Compat) + your guarded init -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
@@ -36,8 +41,6 @@
     .cal-select{ background:#1e1e1e; border:1px solid rgba(144,144,144,.35); border-radius:.5rem; padding:.35rem .6rem; }
     .cal-select:focus{ outline:2px solid var(--accent); }
     .link-card{ display:block; text-decoration:none; color:inherit; }
-
-    /* Dropdown panel */
     .menu-panel{ background:#1b1b1b; border:1px solid rgba(144,144,144,0.35); border-radius:.6rem; min-width: 180px; }
     .menu-item{ display:flex; align-items:center; gap:.5rem; padding:.55rem .7rem; font-size:.9rem; color:var(--light); }
     .menu-item:hover{ background:#232323; }
@@ -47,17 +50,34 @@
   <!-- Header -->
   <header class="panel text-[var(--light)] p-4 shadow-md border-b divider">
     <div class="container mx-auto flex justify-between items-center">
-      <h1 class="text-2xl font-bold tracking-tight">
-        <span class="accent-text">Iron</span>Pump
-      </h1>
+      <!-- Logo + Title -->
+      <div class="flex items-center gap-3">
+        <!-- 1) ironpump.png icon -->
+        <img src="ironpump.png" alt="IronPump" class="w-8 h-8 rounded-md object-contain" />
+        <h1 class="text-2xl font-bold tracking-tight">
+          <span class="accent-text">Iron</span>Pump
+        </h1>
+      </div>
 
-      <!-- Calendar + User Menu -->
+      <!-- Right cluster: Welcome + Profile + Calendar + View Trainers + User Menu -->
       <div class="flex items-center gap-2 relative">
         <span id="programName" class="hidden text-sm text-muted"></span>
 
+        <!-- 3) Welcome full name + avatar (before calendar) -->
+        <div id="welcomeWrap" class="hidden md:flex items-center gap-2 mr-1">
+          <img id="userAvatar" src="" alt="Profile" class="w-8 h-8 rounded-full border border-[#2a2a2a] object-cover" />
+          <div class="text-sm">
+            <span class="text-muted">Welcome, </span><span id="userFullName" class="font-medium">Athlete</span>
+          </div>
+        </div>
+
+        <!-- Calendar button -->
         <button id="calendarBtn" class="p-2 rounded-full hover:bg-[#1f1f1f] transition" aria-label="Open Calendar">
           <i data-feather="calendar" class="accent-text"></i>
         </button>
+
+        <!-- 4) View Trainers button (before dropdown icon) -->
+        <a href="trainers-panel.html" class="ml-1 px-3 py-2 rounded-lg btn-ghost text-sm hidden sm:inline-block">View Trainers</a>
 
         <!-- ▼ dropdown arrow button -->
         <button id="userMenuBtn" class="p-2 rounded-full hover:bg-[#1f1f1f] transition" aria-haspopup="true" aria-expanded="false" aria-controls="userMenu" aria-label="Open menu">
@@ -69,6 +89,7 @@
           <a href="profile-client.html" class="menu-item" id="menuProfile">
             <i data-feather="user" class="w-4 h-4"></i><span>View Profile</span>
           </a>
+          <!-- 2) Working Sign Out -->
           <button class="menu-item w-full text-left" id="menuSignOut">
             <i data-feather="log-out" class="w-4 h-4"></i><span>Sign Out</span>
           </button>
@@ -144,11 +165,11 @@
     </div>
   </div>
 
-  <!-- ===== Minimal UI-only JS (no auth, no data) ===== -->
+  <!-- ===== UI + Auth Glue ===== -->
   <script>
     feather.replace();
 
-    // Header dropdown
+    // Dropdown
     const userMenuBtn = document.getElementById('userMenuBtn');
     const userMenu = document.getElementById('userMenu');
     const menuSignOut = document.getElementById('menuSignOut');
@@ -166,7 +187,6 @@
     userMenuBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleMenu(true); });
     document.addEventListener('click', (e)=>{ if(!userMenu.contains(e.target) && e.target!==userMenuBtn){ toggleMenu(false); }});
     document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ toggleMenu(false); }});
-    menuSignOut.addEventListener('click', ()=>{ toggleMenu(false); alert('Sign out (preview mode)'); });
 
     // Calendar (no marks)
     const calendarBtn = document.getElementById('calendarBtn');
@@ -264,6 +284,70 @@
       const fname = `ironpump-month-${viewYear}-${String(viewMonth+1).padStart(2,'0')}.pdf`;
       doc.save(fname);
     });
+
+    /* ==============================
+       AUTH glue (Compat-safe)
+       ============================== */
+    const welcomeWrap = document.getElementById('welcomeWrap');
+    const fullNameEl  = document.getElementById('userFullName');
+    const avatarEl    = document.getElementById('userAvatar');
+
+    function safeFeatherReplace() { try { feather.replace(); } catch(e){} }
+
+    // Work with either compat (firebase.auth()) or modular via global app init
+    function getAuthCompatOrNull() {
+      try {
+        if (window.firebase?.apps?.length) return window.firebase.auth();
+      } catch(e){}
+      return null;
+    }
+
+    // Populate welcome + enable real sign out
+    const authCompat = getAuthCompatOrNull();
+    if (authCompat) {
+      authCompat.onAuthStateChanged((user) => {
+        if (user) {
+          const displayName = user.displayName || user.email || "Athlete";
+          const photo = user.photoURL || "";
+          fullNameEl.textContent = displayName;
+          if (photo) {
+            avatarEl.src = photo;
+          } else {
+            // Simple placeholder (initial)
+            const initial = (displayName || "A").trim().charAt(0).toUpperCase();
+            avatarEl.src = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+              <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
+                <rect width='100%' height='100%' fill='#232323'/>
+                <text x='50%' y='55%' text-anchor='middle' font-size='34' font-family='Inter' fill='#97FB57'>${initial}</text>
+              </svg>
+            `);
+          }
+          welcomeWrap.classList.remove('hidden');
+          safeFeatherReplace();
+        } else {
+          welcomeWrap.classList.add('hidden');
+        }
+      });
+
+      // Working Sign Out
+      menuSignOut.addEventListener('click', async () => {
+        toggleMenu(false);
+        try {
+          await authCompat.signOut();
+          // Redirect to login (adjust if your login page differs)
+          location.href = 'login.html';
+        } catch (e) {
+          console.error('[SignOut] failed:', e);
+          alert('Sign out failed. Check console for details.');
+        }
+      });
+    } else {
+      // Fallback (preview-only)
+      menuSignOut.addEventListener('click', () => {
+        toggleMenu(false);
+        alert('Sign out unavailable: Firebase not initialized.');
+      });
+    }
   </script>
 </body>
 </html>
