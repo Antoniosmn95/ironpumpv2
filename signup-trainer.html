@@ -9,16 +9,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Optional guarded init -->
+  <!-- Your modular Firebase init -->
   <script type="module" src="firebase-init.js"></script>
 
-  <!-- Firebase compat SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-storage-compat.js"></script>
-
-  <!-- Option B (Themed popup): Flatpickr -->
+  <!-- Flatpickr (optional) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
@@ -72,12 +66,8 @@
     }
     @keyframes spin{ to{ transform:rotate(360deg);} }
 
-    /* ===== Option A: native date input styled like the app ===== */
-    input[type="date"]{
-      color-scheme: dark;
-      accent-color: var(--accent);
-    }
-    /* Muted icon (matches password eye) */
+    /* Native date input */
+    input[type="date"]{ color-scheme: dark; accent-color: var(--accent); }
     input[type="date"]::-webkit-calendar-picker-indicator{
       opacity: 1;
       background: url("data:image/svg+xml;utf8,\
@@ -89,7 +79,6 @@
       </svg>") no-repeat center / 18px 18px;
       cursor: pointer;
     }
-    /* On focus, icon switches to accent */
     input[type="date"]:focus::-webkit-calendar-picker-indicator{
       background-image: url("data:image/svg+xml;utf8,\
       <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397FB57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
@@ -100,26 +89,15 @@
       </svg>");
     }
 
-    /* ===== Option B: Flatpickr themed to IronPump ===== */
-    .flatpickr-calendar{
-      background:#171717;
-      border:1px solid rgba(144,144,144,.35);
-      box-shadow:0 10px 30px rgba(0,0,0,.45);
-      color:var(--light);
-    }
-    .flatpickr-months, .flatpickr-weekdays{
-      background:#161616; color:var(--light);
-      border-bottom:1px solid rgba(144,144,144,.25);
-    }
-    .flatpickr-current-month .flatpickr-monthDropdown-months,
-    .flatpickr-current-month input.cur-year{ color:var(--light); }
+    /* Flatpickr theme (optional) */
+    .flatpickr-calendar{ background:#171717;border:1px solid rgba(144,144,144,.35);box-shadow:0 10px 30px rgba(0,0,0,.45);color:var(--light); }
+    .flatpickr-months, .flatpickr-weekdays{ background:#161616;color:var(--light);border-bottom:1px solid rgba(144,144,144,.25); }
+    .flatpickr-current-month .flatpickr-monthDropdown-months,.flatpickr-current-month input.cur-year{ color:var(--light); }
     .flatpickr-weekday{ color:var(--muted); }
     .flatpickr-day{ color:var(--light); border-radius:.45rem; }
     .flatpickr-day:hover{ background:#222; }
-    .flatpickr-day.today{ box-shadow: inset 0 0 0 2px var(--accent); color:var(--light); }
-    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange{
-      background:var(--accent); color:var(--bg);
-    }
+    .flatpickr-day.today{ box-shadow: inset 0 0 0 2px var(--accent); }
+    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange{ background:var(--accent); color:var(--bg); }
   </style>
 </head>
 <body class="min-h-[100svh] flex items-start justify-center p-3 md:p-4">
@@ -167,7 +145,6 @@
                    class="input" placeholder="Repeat password" autocomplete="new-password"/>
           </div>
 
-          <!-- NEW: Date of Birth -->
           <div>
             <label for="dob" class="block text-xs mb-1">Date of Birth</label>
             <input id="dob" type="date" class="input" required
@@ -309,24 +286,25 @@
     </p>
   </main>
 
-  <script>
+  <script type="module">
     feather.replace();
 
-    // Firebase init
-    const firebaseConfig = {
-      apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
-      authDomain: "ironpump-gym-tracker.firebaseapp.com",
-      projectId: "ironpump-gym-tracker",
-      storageBucket: "ironpump-gym-tracker.firebasestorage.app",
-      messagingSenderId: "267000647709",
-      appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
-      measurementId: "G-BG3TDDWXZH"
-    };
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
+    import {
+      getAuth, createUserWithEmailAndPassword, onAuthStateChanged,
+      sendEmailVerification, updateProfile, reload, signOut
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+    import {
+      getFirestore, doc, setDoc, getDoc, serverTimestamp
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+    import {
+      getStorage, ref, uploadBytes, getDownloadURL
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
 
-    const auth = firebase.auth();
-    const db = firebase.firestore();
-    const storage = firebase.storage();
+    // Single initialized app (from firebase-init.js)
+    const auth    = exportedAuth || getAuth(app);
+    const db      = exportedDb   || getFirestore(app);
+    const storage = getStorage(app);
 
     // Helpers
     const $ = (id) => document.getElementById(id);
@@ -351,10 +329,9 @@
       feather.replace();
     });
 
-    // Live sanitizers
+    // Sanitizers
     $('phone').addEventListener('input', (e) => {
-      let v = e.target.value.replace(/[^\d+\s-]/g, '').replace(/(?!^)\+/g, '');
-      e.target.value = v;
+      e.target.value = e.target.value.replace(/[^\d+\s-]/g, '').replace(/(?!^)\+/g, '');
     });
     $('fullName').addEventListener('input', (e) => {
       e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF\s]/g, '');
@@ -363,7 +340,6 @@
       e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF,\s]/g, '');
     });
 
-    // Confirm password match
     function syncPasswordMatch(){
       const p1 = $('password').value;
       const p2 = $('password2');
@@ -373,17 +349,18 @@
     $('password').addEventListener('input', syncPasswordMatch);
     $('password2').addEventListener('input', syncPasswordMatch);
 
-    // Email verification gate + role route
+    // Role fetcher (for redirect after verify)
     async function getUserRole(uid){
       try{
-        const doc = await db.collection('users').doc(uid).get();
-        return doc.exists ? (doc.data().role || 'client') : 'client';
+        const snap = await getDoc(doc(db, 'users', uid));
+        return snap.exists() ? (snap.data().role || 'client') : 'client';
       }catch{ return 'client'; }
     }
 
-    auth.onAuthStateChanged(async (u) => {
+    // Email verification gate + role route
+    onAuthStateChanged(auth, async (u) => {
       if (!u) return;
-      try { await u.reload(); } catch {}
+      try { await reload(u); } catch {}
       if (!u.emailVerified) { showVerifyPanel(u.email); return; }
       const role = await getUserRole(u.uid);
       location.replace(role === 'trainer' ? 'trainer-dashboard.html' : 'index.html');
@@ -400,21 +377,21 @@
     document.getElementById('btnResend').addEventListener('click', async () => {
       const u = auth.currentUser;
       try {
-        await u.sendEmailVerification();
+        await sendEmailVerification(u);
         const hint = $('verifyHint'); hint.textContent = 'Verification email sent again.'; hint.style.color = 'var(--accent)';
       } catch {
         const hint = $('verifyHint'); hint.textContent = 'Could not resend. Please try again later.'; hint.style.color = '#ff6b6b';
       }
     });
     document.getElementById('btnChangeEmail').addEventListener('click', async () => {
-      try { await auth.signOut(); } catch {}
+      try { await signOut(auth); } catch {}
       location.reload();
     });
 
     let pollTimer = null;
     async function checkVerificationOnce(){
       const u = auth.currentUser; if (!u) return;
-      try { await u.reload(); } catch {}
+      try { await reload(u); } catch {}
       if (u.emailVerified) {
         hideVerifyPanel();
         showSuccess('Email verified! Redirecting to your dashboard…');
@@ -434,7 +411,7 @@
     document.getElementById('signupForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      // Trim common fields
+      // Trim inputs
       ['fullName','email','phone','languages','org','specialties','certs','bio','social','trainerCode'].forEach(id=>{
         const el = $(id); if (el && typeof el.value === 'string') el.value = el.value.trim();
       });
@@ -446,23 +423,23 @@
         return;
       }
 
-      const fullName = $('fullName').value;
-      const email = $('email').value;
-      const password = $('password').value;
-      const password2 = $('password2').value;
-      const phone = $('phone').value;
-      const country = $('country').value;
-      const languages = $('languages').value;
-      const org = $('org').value;
-      const years = Number($('years').value || 0);
-      const accepting = $('accepting').value === 'yes';
-      const specialties = $('specialties').value;
-      const certs = $('certs').value;
-      const bio = $('bio').value;
-      const social = $('social').value;
-      const trainerCode = $('trainerCode').value;
-      const dob = $('dob').value;     // NEW: collect DoB
-      const photoFile = $('photo').files[0];
+      const fullName   = $('fullName').value;
+      const email      = $('email').value;
+      const password   = $('password').value;
+      const password2  = $('password2').value;
+      const phone      = $('phone').value;
+      const country    = $('country').value;
+      const languages  = $('languages').value;
+      const org        = $('org').value;
+      const years      = Number($('years').value || 0);
+      const accepting  = $('accepting').value === 'yes';
+      const specialties= $('specialties').value;
+      const certs      = $('certs').value;
+      const bio        = $('bio').value;
+      const social     = $('social').value;
+      const trainerCode= $('trainerCode').value;
+      const dob        = $('dob').value;
+      const photoFile  = $('photo').files[0];
 
       if (password !== password2) { showError('Passwords do not match.'); return; }
       if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
@@ -470,28 +447,29 @@
       try{
         setLoading(true);
 
-        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
 
         // Photo (optional)
         let photoURL = '';
         if (photoFile) {
           if (photoFile.size > 5 * 1024 * 1024) throw new Error('Image too large (max 5 MB).');
-          const ref = storage.ref().child(`users/${uid}/profile.jpg`);
-          await ref.put(photoFile);
-          photoURL = await ref.getDownloadURL();
+          const r = ref(storage, `users/${uid}/profile.jpg`);
+          await uploadBytes(r, photoFile, { contentType: photoFile.type || 'image/jpeg' });
+          photoURL = await getDownloadURL(r);
         }
 
-        await cred.user.updateProfile({ displayName: fullName, photoURL: photoURL || null });
+        // Update auth profile
+        await updateProfile(cred.user, { displayName: fullName, photoURL: photoURL || null });
 
-        // Save trainer document (includes dateOfBirth)
-        await db.collection('users').doc(uid).set({
+        // Save trainer doc (role=trainer)
+        await setDoc(doc(db, 'users', uid), {
           role: 'trainer',
           email,
           fullName,
           phone,
           country,
-          dateOfBirth: dob,   // NEW: saved
+          dateOfBirth: dob,
           languages: languages ? languages.split(',').map(s=>s.trim()).filter(Boolean) : [],
           organization: org,
           yearsExperience: years,
@@ -501,12 +479,13 @@
           bio,
           social: social || '',
           trainerCode: trainerCode || '',
-          photoURL,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+          photoURL: photoURL || '',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
 
-        await cred.user.sendEmailVerification();
+        await sendEmailVerification(cred.user);
+
         showSuccess('Account created! Check your email to verify.');
         showVerifyPanel(email);
         startVerificationPolling();
@@ -530,16 +509,11 @@
           default: return err.message || 'Sign up failed. Please try again.';
         }
       }
-      if (code.startsWith('storage/')) {
-        if (code.includes('unauthorized')) return 'You don’t have permission to upload this image.';
-        if (code.includes('canceled')) return 'Image upload was canceled.';
-        return 'Image upload failed. Try another image.';
-      }
       if (code.includes('permission-denied')) return 'You don’t have permission to save your profile.';
       return err.message || 'Something went wrong. Please try again.';
     }
 
-    // Initialize Option B if available; fallback remains Option A
+    // Flatpickr (optional)
     window.addEventListener('DOMContentLoaded', () => {
       if (window.flatpickr) {
         flatpickr("#dob", {
