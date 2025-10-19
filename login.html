@@ -16,16 +16,16 @@
   <!-- Firebase init -->
   <script type="module" src="firebase-init.js"></script>
 
-  <!-- Pre-auth gate -->
+  <!-- Pre-auth gate: if already signed-in, route by role -->
   <script type="module">
     import { app, auth as exportedAuth, db as exportedDb } from "./firebase-init.js";
     import { getAuth, onAuthStateChanged, reload } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
     import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
     const auth = exportedAuth || getAuth(app);
-    const db = exportedDb || getFirestore(app);
+    const db   = exportedDb   || getFirestore(app);
 
-    const routeFor = (role) => role === "trainer" ? "trainer-dashboard.html" : "index.html";
+    const routeFor = (role) => role === "trainer" ? "trainer-dashboard.html" : "client-dashboard.html"; /* CHANGED */
 
     onAuthStateChanged(auth, async (u)=>{
       if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
@@ -36,11 +36,12 @@
           const d = snap.data() || {};
           const role = Array.isArray(d.roles) ? String(d.roles[0]||"client").toLowerCase()
                                               : String(d.role||"client").toLowerCase();
+          try { sessionStorage.setItem("ironpump_lastRole", role); localStorage.setItem("ironpump_lastRole", role); } catch {}
           location.replace(routeFor(role));
           return;
         }
       }catch(_){}
-      location.replace("index.html");
+      location.replace("client-dashboard.html"); /* CHANGED */
     });
   </script>
 
@@ -123,9 +124,7 @@
       signInWithEmailAndPassword, sendPasswordResetEmail,
       onAuthStateChanged, reload, signOut
     } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-    import {
-      getFirestore, doc, getDoc
-    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+    import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 
     const auth = exportedAuth || getAuth(app);
     const db   = exportedDb   || getFirestore(app);
@@ -136,7 +135,8 @@
     const rememberEl = $('remember');
     const statusEl = $('status');
     const loginBtn = $('loginBtn');
-    const routeFor = (role) => role === 'trainer' ? 'trainer-dashboard.html' : 'index.html';
+
+    const routeFor = (role) => role === 'trainer' ? 'trainer-dashboard.html' : 'client-dashboard.html'; /* CHANGED */
 
     function friendlyAuthError(err){
       const code = String(err?.code || '');
@@ -155,6 +155,7 @@
       const role = Array.isArray(data.roles) ? String(data.roles[0] || 'client').toLowerCase()
                                              : String(data.role || 'client').toLowerCase();
       if(role!=='client' && role!=='trainer') throw new Error('Invalid role on profile.');
+      try { sessionStorage.setItem('ironpump_lastRole', role); localStorage.setItem('ironpump_lastRole', role); } catch {} /* NEW */
       return role;
     }
 
@@ -207,14 +208,17 @@
       }
     });
 
-    // If already signed in
+    // If already signed in, route out of login
     onAuthStateChanged(auth,async(u)=>{
-      if(!u) return;
+      if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
       try{ await reload(u); }catch{}
       try{
         const role=await fetchUserRole(u.uid);
         location.replace(routeFor(role));
-      }catch(_){ try{ await signOut(auth); }catch{} }
+      }catch(_){
+        try{ await signOut(auth); }catch{}
+        document.documentElement.classList.remove("__gate-hide");
+      }
     });
   </script>
 </body>
