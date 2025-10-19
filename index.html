@@ -15,6 +15,9 @@
 
   <!-- Your modular Firebase init -->
   <script type="module" src="firebase-init.js"></script>
+  <!-- Guard + Logout (auto-redirects if not signed in; signs out properly) -->
+  <script type="module" src="auth-guard.js"></script>
+  <script type="module" src="logout.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -164,19 +167,17 @@
     </div>
   </div>
 
-  <!-- ===== All JS (modular) ===== -->
+  <!-- ===== Page JS (no inline sign-out; uses AuthGuard + logout.js) ===== -->
   <script type="module">
-    import { auth } from './firebase-init.js';
-    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+    // Require role for this page — change to 'trainer' if needed:
+    await window.AuthGuard?.requireRole?.('client');
 
-    // Feather icons
+    // Icons
     try { feather.replace(); } catch(e){}
 
     // Dropdown
     const userMenuBtn = document.getElementById('userMenuBtn');
     const userMenu = document.getElementById('userMenu');
-    const menuSignOut = document.getElementById('menuSignOut');
-
     function toggleMenu(open){
       const isOpen = open ?? userMenu.classList.contains('hidden');
       if(isOpen) {
@@ -191,46 +192,35 @@
     document.addEventListener('click', (e)=>{ if(!userMenu.contains(e.target) && e.target!==userMenuBtn){ toggleMenu(false); }});
     document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ toggleMenu(false); }});
 
-    // Welcome header
+    // Welcome header (via AuthGuard)
     const welcomeWrap = document.getElementById('welcomeWrap');
     const fullNameEl  = document.getElementById('userFullName');
     const avatarEl    = document.getElementById('userAvatar');
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        const displayName = user.displayName || user.email || 'Athlete';
-        const photo = user.photoURL || '';
-        fullNameEl.textContent = displayName;
-
-        if (photo) {
-          avatarEl.src = photo;
-        } else {
-          const initial = displayName.trim().charAt(0).toUpperCase();
-          avatarEl.src = `data:image/svg+xml;utf8,` + encodeURIComponent(`
-            <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
-              <rect width='100%' height='100%' fill='#232323'/>
-              <text x='50%' y='55%' text-anchor='middle' font-size='34' font-family='Inter' fill='#97FB57'>${initial}</text>
-            </svg>
-          `);
-        }
-        welcomeWrap.classList.remove('hidden');
-      } else {
+    window.AuthGuard?.onAuth?.(async (user) => {
+      if (!user) {
+        // AuthGuard will redirect to login for protected pages.
         welcomeWrap.classList.add('hidden');
-        // Uncomment if index requires auth:
-        // location.href = 'login.html';
+        return;
       }
-    });
+      // Merge profile for nicer name/photo if present
+      const p = await window.AuthGuard.getProfile();
+      const displayName = p?.fullName || user.displayName || user.email || 'Athlete';
+      const photo = p?.photoURL || user.photoURL || '';
 
-    // Sign out
-    menuSignOut.addEventListener('click', async () => {
-      toggleMenu(false);
-      try {
-        await signOut(auth);
-        location.href = 'login.html';
-      } catch (e) {
-        console.error('[SignOut] failed:', e);
-        alert('Sign out failed. Check console for details.');
+      fullNameEl.textContent = displayName;
+      if (photo) {
+        avatarEl.src = photo;
+      } else {
+        const initial = displayName.trim().charAt(0).toUpperCase();
+        avatarEl.src = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+          <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
+            <rect width='100%' height='100%' fill='#232323'/>
+            <text x='50%' y='55%' text-anchor='middle' font-size='34' font-family='Inter' fill='#97FB57'>${initial}</text>
+          </svg>
+        `);
       }
+      welcomeWrap.classList.remove('hidden');
     });
 
     /* ============================
@@ -309,7 +299,7 @@
     const openCal = () => { calendarModal.classList.remove('hidden'); renderCalendar(); }
     const closeCal = () => { calendarModal.classList.add('hidden'); }
 
-    document.getElementById('calendarBtn').addEventListener('click', openCal);
+    calendarBtn.addEventListener('click', openCal);
     closeCalendar.addEventListener('click', closeCal);
     calendarModal.addEventListener('click', (e)=>{ if(e.target === calendarModal) closeCal(); });
 
