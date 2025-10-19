@@ -142,7 +142,7 @@
     const statusEl = $('status');
     const loginBtn = $('loginBtn');
 
-    // Keep email clean of spaces/newlines
+    // Clean email input
     (() => {
       if (!emailEl) return;
       emailEl.addEventListener('input', () => { emailEl.value = emailEl.value.replace(/\s+/g, ''); });
@@ -162,16 +162,23 @@
       const next = new URLSearchParams(location.search).get('next');
       return role === 'trainer' ? (next || 'trainer-dashboard.html') : (next || 'index.html');
     }
-    async function fetchUserRole(uid) {
+
+    // NOTE: Firestore is the source of truth; if no doc, fall back to chosenRole just for routing.
+    async function fetchUserRole(uid, fallbackRole) {
       try {
         const snap = await getDoc(doc(db, 'users', uid));
-        if (!snap.exists()) return 'client';
-        const data = snap.data() || {};
-        return Array.isArray(data.roles) ? String(data.roles[0] || 'client').toLowerCase()
-                                         : String(data.role || 'client').toLowerCase();
-      } catch {
-        return 'client';
+        if (snap.exists()) {
+          const data = snap.data() || {};
+          const stored = Array.isArray(data.roles)
+            ? String(data.roles[0] || 'client').toLowerCase()
+            : String(data.role || 'client').toLowerCase();
+          return stored;
+        }
+        console.warn('[Login] No /users doc for uid; using selected tab as fallback:', fallbackRole);
+      } catch (e) {
+        console.warn('[Login] getDoc failed, using fallback role:', e);
       }
+      return (fallbackRole || 'client').toLowerCase();
     }
 
     // ---- Password eye toggle ----
@@ -215,8 +222,11 @@
 
         const cred = await signInWithEmailAndPassword(auth, email, pass);
 
-        // Route by stored role (no email verification checks)
-        const role = await fetchUserRole(cred.user.uid);
+        // Route by Firestore role; if none, fall back to selected tab (guard will enforce real role)
+        const role = await fetchUserRole(cred.user.uid, chosenRole);
+        if (role !== chosenRole) {
+          console.info(`[Login] Routing by stored role "${role}" (selected tab was "${chosenRole}")`);
+        }
         location.replace(routeFor(role));
       } catch (e) {
         console.error('[Auth] signIn failed:', e.code, e.message);
@@ -231,7 +241,7 @@
     onAuthStateChanged(auth, async (u) => {
       if (!u) return;
       try { await reload(u); } catch {}
-      const role = await fetchUserRole(u.uid);
+      const role = await fetchUserRole(u.uid, chosenRole);
       location.replace(routeFor(role));
     });
   </script>
