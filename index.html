@@ -13,11 +13,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
-  <!-- Your modular Firebase init -->
+  <!-- Firebase init + Auth guard (no logout.js) -->
   <script type="module" src="firebase-init.js"></script>
-  <!-- Guard + Logout (auto-redirects if not signed in; signs out properly) -->
   <script type="module" src="auth-guard.js"></script>
-  <script type="module" src="logout.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -38,11 +36,9 @@
     .divider{ border-color:rgba(144,144,144,0.35); }
     .cal-day{ border-radius:.5rem; cursor:default; }
     .cal-day--muted{ color:#666; }
-    .cal-day--marked{ background: var(--accent); color: var(--bg); box-shadow: 0 0 10px rgba(151,251,87,.35); font-weight: 600; }
     .cal-day--today{ outline:2px solid rgba(151,251,87,.6); outline-offset:2px; }
     .cal-select{ background:#1e1e1e; border:1px solid rgba(144,144,144,.35); border-radius:.5rem; padding:.35rem .6rem; }
     .cal-select:focus{ outline:2px solid var(--accent); }
-    .link-card{ display:block; text-decoration:none; color:inherit; }
     .menu-panel{ background:#1b1b1b; border:1px solid rgba(144,144,144,0.35); border-radius:.6rem; min-width: 180px; }
     .menu-item{ display:flex; align-items:center; gap:.5rem; padding:.55rem .7rem; font-size:.9rem; color:var(--light); }
     .menu-item:hover{ background:#232323; }
@@ -64,7 +60,7 @@
       <div class="flex items-center gap-2 relative">
         <span id="programName" class="hidden text-sm text-muted"></span>
 
-        <!-- Welcome full name + avatar (before calendar) -->
+        <!-- Welcome full name + avatar -->
         <div id="welcomeWrap" class="hidden md:flex items-center gap-2 mr-1">
           <img id="userAvatar" src="" alt="Profile" class="w-8 h-8 rounded-full border border-[#2a2a2a] object-cover" />
           <div class="text-sm">
@@ -77,7 +73,7 @@
           <i data-feather="calendar" class="accent-text"></i>
         </button>
 
-        <!-- View Trainers button (#97FB57) -->
+        <!-- View Trainers -->
         <a href="trainers-panel.html" class="ml-1 px-3 py-2 rounded-lg btn-accent text-sm hidden sm:inline-block">
           View Trainers
         </a>
@@ -167,20 +163,19 @@
     </div>
   </div>
 
-  <!-- ===== Page JS (no inline sign-out; uses AuthGuard + logout.js) ===== -->
+  <!-- ===== Page JS ===== -->
   <script type="module">
-    // Require role for this page — change to 'trainer' if needed:
+    // Require client role for this page
     await window.AuthGuard?.requireRole?.('client');
 
     // Icons
-    try { feather.replace(); } catch(e){}
+    try { feather.replace(); } catch {}
 
-    // Dropdown
+    // Dropdown menu logic
     const userMenuBtn = document.getElementById('userMenuBtn');
     const userMenu = document.getElementById('userMenu');
-    function toggleMenu(open){
-      const isOpen = open ?? userMenu.classList.contains('hidden');
-      if(isOpen) {
+    function setMenu(open){
+      if (open) {
         userMenu.classList.remove('hidden');
         userMenuBtn.setAttribute('aria-expanded','true');
       } else {
@@ -188,9 +183,30 @@
         userMenuBtn.setAttribute('aria-expanded','false');
       }
     }
-    userMenuBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleMenu(true); });
-    document.addEventListener('click', (e)=>{ if(!userMenu.contains(e.target) && e.target!==userMenuBtn){ toggleMenu(false); }});
-    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ toggleMenu(false); }});
+    userMenuBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const open = userMenu.classList.contains('hidden');
+      setMenu(open);
+    });
+    document.addEventListener('click', (e)=>{
+      if (!userMenu.contains(e.target) && e.target !== userMenuBtn) setMenu(false);
+    });
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ setMenu(false); }});
+
+    // Sign Out wiring (uses AuthGuard.signOut → redirects to login.html)
+    const signOutBtn = document.getElementById('menuSignOut');
+    signOutBtn?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        signOutBtn.disabled = true;
+        await window.AuthGuard?.signOut?.();
+      } catch (err) {
+        console.error('[SignOut] failed:', err);
+        signOutBtn.disabled = false;
+        alert('Could not sign out. Please try again.');
+      }
+    });
 
     // Welcome header (via AuthGuard)
     const welcomeWrap = document.getElementById('welcomeWrap');
@@ -199,11 +215,9 @@
 
     window.AuthGuard?.onAuth?.(async (user) => {
       if (!user) {
-        // AuthGuard will redirect to login for protected pages.
         welcomeWrap.classList.add('hidden');
         return;
       }
-      // Merge profile for nicer name/photo if present
       const p = await window.AuthGuard.getProfile();
       const displayName = p?.fullName || user.displayName || user.email || 'Athlete';
       const photo = p?.photoURL || user.photoURL || '';
@@ -223,9 +237,7 @@
       welcomeWrap.classList.remove('hidden');
     });
 
-    /* ============================
-       Calendar (UI only)
-       ============================ */
+    /* ============ Calendar (UI only) ============ */
     const calendarBtn = document.getElementById('calendarBtn');
     const calendarModal = document.getElementById('calendarModal');
     const closeCalendar = document.getElementById('closeCalendar');
@@ -295,7 +307,6 @@
       }
     }
 
-    // Calendar controls
     const openCal = () => { calendarModal.classList.remove('hidden'); renderCalendar(); }
     const closeCal = () => { calendarModal.classList.add('hidden'); }
 
