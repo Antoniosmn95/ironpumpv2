@@ -9,7 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Your modular Firebase init -->
+  <!-- Firebase (initialized in your local file) -->
   <script type="module" src="firebase-init.js"></script>
 
   <!-- Flatpickr (optional) -->
@@ -89,15 +89,28 @@
       </svg>");
     }
 
-    /* Flatpickr theme (optional) */
-    .flatpickr-calendar{ background:#171717;border:1px solid rgba(144,144,144,.35);box-shadow:0 10px 30px rgba(0,0,0,.45);color:var(--light); }
-    .flatpickr-months, .flatpickr-weekdays{ background:#161616;color:var(--light);border-bottom:1px solid rgba(144,144,144,.25); }
-    .flatpickr-current-month .flatpickr-monthDropdown-months,.flatpickr-current-month input.cur-year{ color:var(--light); }
-    .flatpickr-weekday{ color:var(--muted); }
-    .flatpickr-day{ color:var(--light); border-radius:.45rem; }
-    .flatpickr-day:hover{ background:#222; }
-    .flatpickr-day.today{ box-shadow: inset 0 0 0 2px var(--accent); }
-    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange{ background:var(--accent); color:var(--bg); }
+    /* Welcome overlay */
+    #welcomeOverlay{
+      position: fixed; inset: 0; background: rgba(0,0,0,.75);
+      display: none; align-items: center; justify-content: center; z-index: 9999;
+      backdrop-filter: blur(2px); animation: fadeIn .15s ease-out;
+    }
+    .welcome-card{
+      background:#151515; border:1px solid rgba(144,144,144,.35);
+      border-radius: 1rem; padding: 1.25rem 1.4rem; text-align: center; width: 90%; max-width: 420px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+      animation: pop .18s ease-out;
+    }
+    .welcome-logo{
+      width: 72px; height: 72px; border-radius: .75rem; object-fit: contain;
+      border:1px solid rgba(144,144,144,.35); background:#111; margin: 0 auto .65rem;
+    }
+    .welcome-spinner{
+      width: 22px; height: 22px; border-width: 3px; margin: .35rem auto 0;
+      border-radius: 9999px; border: 3px solid rgba(255,255,255,.22); border-top-color: #fff; animation: spin .8s linear infinite;
+    }
+    @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+    @keyframes pop { from { transform: translateY(6px) scale(.98); opacity:.9 } to { transform: translateY(0) scale(1); opacity:1 } }
   </style>
 </head>
 <body class="min-h-[100svh] flex items-start justify-center p-3 md:p-4">
@@ -121,7 +134,6 @@
           <div>
             <label for="email" class="block text-xs mb-1">Email</label>
             <input id="email" type="email" required
-                   pattern="^[^@\s]+@[^@\s]+\.[^@\s]+$"
                    autocapitalize="none" autocomplete="email" spellcheck="false" autocorrect="off"
                    class="input" placeholder="coach@example.com"/>
           </div>
@@ -148,7 +160,7 @@
           <div>
             <label for="dob" class="block text-xs mb-1">Date of Birth</label>
             <input id="dob" type="date" class="input" required
-                   min="1900-01-01" max="2025-12-31" placeholder="YYYY-MM-DD"/>
+                   min="1900-01-01" placeholder="YYYY-MM-DD"/>
           </div>
         </div>
 
@@ -255,25 +267,6 @@
 
         <p id="status" class="text-[12px] mt-1 h-4"></p>
 
-        <!-- Email verification panel -->
-        <div id="verifyPanel" class="hidden mt-2.5 p-3 rounded-xl border border-[rgba(144,144,144,0.35)] bg-[#171717]">
-          <div class="flex items-start gap-2.5">
-            <div class="spinner" aria-hidden="true"></div>
-            <div class="flex-1">
-              <p class="font-semibold text-sm">Verify your email to continue</p>
-              <p class="text-xs text-muted mt-1">
-                We sent a verification link to <span id="vEmail" class="font-medium"></span>. Once you verify, you’ll be redirected to your trainer dashboard.
-              </p>
-              <div class="flex flex-wrap gap-2 mt-2">
-                <button type="button" id="btnCheck" class="btn-accent px-2.5 py-1.5 rounded-lg font-medium text-sm">I’ve verified</button>
-                <button type="button" id="btnResend" class="btn-ghost px-2.5 py-1.5 rounded-lg font-medium text-sm">Resend email</button>
-                <button type="button" id="btnChangeEmail" class="btn-ghost px-2.5 py-1.5 rounded-lg font-medium text-sm">Use a different email</button>
-              </div>
-              <p id="verifyHint" class="text-[11px] text-muted mt-2">Tip: Sometimes it lands in Spam/Promotions.</p>
-            </div>
-          </div>
-        </div>
-
         <p class="text-xs text-center mt-1.5">
           Already registered?
           <a href="login.html" class="accent-text hover:underline">Log in</a>
@@ -286,16 +279,25 @@
     </p>
   </main>
 
+  <!-- Welcome overlay (shown after signup) -->
+  <div id="welcomeOverlay" aria-hidden="true">
+    <div class="welcome-card">
+      <img src="ironpump.png" alt="IronPump" class="welcome-logo">
+      <h3 class="text-lg font-semibold mb-1">Welcome to <span class="accent-text">Iron</span>Pump</h3>
+      <p class="text-sm text-muted">We’re setting up your trainer dashboard…</p>
+      <div class="welcome-spinner" role="status" aria-label="Loading"></div>
+    </div>
+  </div>
+
   <script type="module">
     feather.replace();
 
     import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
     import {
-      getAuth, createUserWithEmailAndPassword, onAuthStateChanged,
-      sendEmailVerification, updateProfile, reload, signOut
+      getAuth, createUserWithEmailAndPassword, onAuthStateChanged, updateProfile, reload
     } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
     import {
-      getFirestore, doc, setDoc, getDoc, serverTimestamp
+      getFirestore, doc, setDoc, serverTimestamp
     } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
     import {
       getStorage, ref, uploadBytes, getDownloadURL
@@ -305,6 +307,9 @@
     const auth    = exportedAuth || getAuth(app);
     const db      = exportedDb   || getFirestore(app);
     const storage = getStorage(app);
+
+    // Just-signed-up key so AuthGuard / onAuth doesn't pre-redirect during overlay
+    const JUST_KEY = 'ironpump_trainer_justSignedUp';
 
     // Helpers
     const $ = (id) => document.getElementById(id);
@@ -317,19 +322,19 @@
       statusEl.style.color = b ? 'var(--muted)' : '';
     }
     function showError(m){ statusEl.textContent = m; statusEl.style.color = '#ff6b6b'; }
-    function showSuccess(m){ statusEl.textContent = m; statusEl.style.color = 'var(--accent)'; }
 
     // Toggle password visibility
     $('togglePw').addEventListener('click', () => {
       const pw = $('password');
       const isPassword = pw.type === 'password';
       pw.type = isPassword ? 'text' : 'password';
-      $('togglePw').setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
-      $('togglePw').querySelector('i').setAttribute('data-feather', isPassword ? 'eye-off' : 'eye');
-      feather.replace();
+      const iconEl = $('togglePw').querySelector('i');
+      if (iconEl){ iconEl.setAttribute('data-feather', isPassword ? 'eye-off' : 'eye'); feather.replace(); }
     });
 
     // Sanitizers
+    $('email').addEventListener('input', e => { e.target.value = e.target.value.replace(/\s+/g, ''); });
+    $('email').addEventListener('blur',  e => { e.target.value = e.target.value.trim(); });
     $('phone').addEventListener('input', (e) => {
       e.target.value = e.target.value.replace(/[^\d+\s-]/g, '').replace(/(?!^)\+/g, '');
     });
@@ -340,6 +345,7 @@
       e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF,\s]/g, '');
     });
 
+    // Password match
     function syncPasswordMatch(){
       const p1 = $('password').value;
       const p2 = $('password2');
@@ -349,65 +355,21 @@
     $('password').addEventListener('input', syncPasswordMatch);
     $('password2').addEventListener('input', syncPasswordMatch);
 
-    // Role fetcher (for redirect after verify)
-    async function getUserRole(uid){
-      try{
-        const snap = await getDoc(doc(db, 'users', uid));
-        return snap.exists() ? (snap.data().role || 'client') : 'client';
-      }catch{ return 'client'; }
-    }
+    // DoB max = today
+    (() => {
+      const d = $('dob');
+      if (d) d.max = new Date().toISOString().slice(0,10);
+    })();
 
-    // Email verification gate + role route
+    // If already signed in (fresh visit) and not just-signed-up → go to trainer dashboard
     onAuthStateChanged(auth, async (u) => {
       if (!u) return;
       try { await reload(u); } catch {}
-      if (!u.emailVerified) { showVerifyPanel(u.email); return; }
-      const role = await getUserRole(u.uid);
-      location.replace(role === 'trainer' ? 'trainer-dashboard.html' : 'index.html');
+      if (sessionStorage.getItem(JUST_KEY) === '1') return; // allow overlay flow
+      window.location.replace('trainer-dashboard.html');
     });
 
-    function showVerifyPanel(email){
-      $('vEmail').textContent = email || '';
-      $('verifyPanel').classList.remove('hidden');
-      const hint = $('verifyHint'); hint.textContent = 'Tip: Sometimes it lands in Spam/Promotions.'; hint.style.color = 'var(--muted)';
-    }
-    function hideVerifyPanel(){ $('verifyPanel').classList.add('hidden'); }
-
-    document.getElementById('btnCheck').addEventListener('click', checkVerificationOnce);
-    document.getElementById('btnResend').addEventListener('click', async () => {
-      const u = auth.currentUser;
-      try {
-        await sendEmailVerification(u);
-        const hint = $('verifyHint'); hint.textContent = 'Verification email sent again.'; hint.style.color = 'var(--accent)';
-      } catch {
-        const hint = $('verifyHint'); hint.textContent = 'Could not resend. Please try again later.'; hint.style.color = '#ff6b6b';
-      }
-    });
-    document.getElementById('btnChangeEmail').addEventListener('click', async () => {
-      try { await signOut(auth); } catch {}
-      location.reload();
-    });
-
-    let pollTimer = null;
-    async function checkVerificationOnce(){
-      const u = auth.currentUser; if (!u) return;
-      try { await reload(u); } catch {}
-      if (u.emailVerified) {
-        hideVerifyPanel();
-        showSuccess('Email verified! Redirecting to your dashboard…');
-        setTimeout(async () => {
-          const role = await getUserRole(u.uid);
-          location.replace(role === 'trainer' ? 'trainer-dashboard.html' : 'index.html');
-        }, 600);
-        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-      }
-    }
-    function startVerificationPolling(){
-      if (pollTimer) return;
-      pollTimer = setInterval(checkVerificationOnce, 6000);
-    }
-
-    // Submit (create trainer, send verification, gate access)
+    // Submit (create trainer and redirect with welcome overlay)
     document.getElementById('signupForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -442,7 +404,7 @@
       const photoFile  = $('photo').files[0];
 
       if (password !== password2) { showError('Passwords do not match.'); return; }
-      if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
+      if (password.length < 6)   { showError('Password must be at least 6 characters.'); return; }
 
       try{
         setLoading(true);
@@ -484,11 +446,14 @@
           updatedAt: serverTimestamp()
         }, { merge: true });
 
-        await sendEmailVerification(cred.user);
-
-        showSuccess('Account created! Check your email to verify.');
-        showVerifyPanel(email);
-        startVerificationPolling();
+        // Show welcome overlay and redirect shortly
+        sessionStorage.setItem(JUST_KEY, '1');
+        const overlay = document.getElementById('welcomeOverlay');
+        overlay.style.display = 'flex';
+        setTimeout(() => {
+          sessionStorage.removeItem(JUST_KEY);
+          window.location.replace('trainer-dashboard.html');
+        }, 1400); // tweak duration if you want
 
       }catch(err){
         console.error(err);
