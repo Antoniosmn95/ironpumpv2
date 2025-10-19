@@ -5,19 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login — IronPump</title>
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
-
   <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Modular Firebase init + optional guard -->
+  <!-- Prevent flicker while pre-auth gate decides -->
+  <style>html.__gate-hide body{visibility:hidden}</style>
+  <script>document.documentElement.classList.add("__gate-hide")</script>
+
+  <!-- Firebase init (must load early) -->
   <script type="module" src="firebase-init.js"></script>
-  <script type="module" src="auth-guard.js"></script>
+
+  <!-- ===== Pre-auth gate: if signed-in, route by role immediately ===== -->
+  <script type="module">
+    import { app, auth as exportedAuth, db as exportedDb } from "./firebase-init.js";
+    import { getAuth, onAuthStateChanged, reload } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+    const auth = exportedAuth || getAuth(app);
+    const db   = exportedDb   || getFirestore(app);
+
+    function routeFor(role){ return role==="trainer" ? "trainer-dashboard.html" : "index.html"; }
+
+    onAuthStateChanged(auth, async (u)=>{
+      if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
+      try{ await reload(u); }catch{}
+      try{
+        const snap = await getDoc(doc(db,"users",u.uid));
+        if(snap.exists()){
+          const d = snap.data()||{};
+          const role = Array.isArray(d.roles) ? String(d.roles[0]||"client").toLowerCase()
+                                              : String(d.role||"client").toLowerCase();
+          location.replace(routeFor(role));
+          return;
+        }
+      }catch(_){}
+      // If no role doc or error, safest is client area
+      location.replace("index.html");
+    });
+  </script>
+  <!-- ===== End pre-auth gate ===== -->
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -33,11 +60,10 @@
     .text-muted{color:var(--muted)}
     .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
     .input:focus{outline:2px solid var(--accent)}
-    .seg{display:flex;background:#1b1b1b;border:1px solid rgba(144,144,144,.35);border-radius:9999px;padding:4px;gap:4px}
-    .seg button{flex:1;padding:.5rem .75rem;border-radius:9999px;font-weight:600;color:var(--light);background:transparent;border:none;cursor:pointer}
-    .seg button.active{background:var(--accent);color:var(--bg);box-shadow:0 0 10px rgba(151,251,87,.35) inset}
     .logo{width:80px;height:auto;margin:0 auto 10px;display:block}
     #status{color:var(--muted);min-height:1.25rem}
+    a.link{color:var(--accent)}
+    a.link:hover{text-decoration:underline}
   </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -46,18 +72,9 @@
       <img src="ironpump.png" alt="IronPump Logo" class="logo">
       <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
     </div>
-    <p class="text-sm text-muted text-center mb-6">Choose your role and log in to your account.</p>
+    <p class="text-sm text-muted text-center mb-6">Log in and we’ll send you to the right dashboard.</p>
 
     <section class="panel rounded-2xl p-6">
-      <div class="mb-4">
-        <label class="block text-sm mb-2">Log in as</label>
-        <div class="seg" role="tablist" aria-label="Login role">
-          <button type="button" id="roleClient" class="active" role="tab" aria-selected="true">Client</button>
-          <button type="button" id="roleTrainer" role="tab" aria-selected="false">Trainer</button>
-        </div>
-        <p class="text-xs text-muted mt-2" id="roleHint">You’re logging in as <span class="accent-text font-semibold">Client</span>.</p>
-      </div>
-
       <form id="loginForm" class="space-y-4" novalidate>
         <div>
           <label for="email" class="block text-sm mb-1">Email</label>
@@ -66,7 +83,7 @@
         <div>
           <div class="flex items-center justify-between mb-1">
             <label for="password" class="block text-sm">Password</label>
-            <button type="button" id="forgotBtn" class="text-sm accent-text hover:underline">Forgot password?</button>
+            <button type="button" id="forgotBtn" class="text-sm link">Forgot password?</button>
           </div>
           <div class="relative">
             <input id="password" type="password" required class="input pr-10" placeholder="••••••••" autocomplete="current-password"/>
@@ -75,14 +92,19 @@
             </button>
           </div>
         </div>
+
         <div class="flex items-center justify-between gap-2 flex-wrap">
           <label class="inline-flex items-center gap-2 text-sm">
             <input id="remember" type="checkbox" class="accent-[var(--accent)]">
             <span>Remember me</span>
           </label>
-          <a href="signup.html" id="registerClient" class="text-sm accent-text hover:underline">Are you a client? Register here</a>
-          <a href="signup-trainer.html" id="registerTrainer" class="text-sm accent-text hover:underline hidden">Are you a trainer? Register here</a>
+          <div class="text-right text-sm">
+            <a class="link" href="signup.html">Sign up as Client</a>
+            <span class="text-muted"> · </span>
+            <a class="link" href="signup-trainer.html">Sign up as Trainer</a>
+          </div>
         </div>
+
         <button id="loginBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
           <i data-feather="log-in" class="w-4 h-4"></i><span>Log In</span>
         </button>
@@ -112,42 +134,13 @@
     const auth = exportedAuth || getAuth(app);
     const db   = exportedDb   || getFirestore(app);
 
-    // ---- Role UI logic ----
-    let chosenRole = sessionStorage.getItem('ironpump_chosenRole') || 'client';
-    const roleClientBtn = document.getElementById('roleClient');
-    const roleTrainerBtn = document.getElementById('roleTrainer');
-    const roleHint = document.getElementById('roleHint');
-    const regClient = document.getElementById('registerClient');
-    const regTrainer = document.getElementById('registerTrainer');
-
-    function setRole(role){
-      const isClient = role === 'client';
-      chosenRole = role;
-      sessionStorage.setItem('ironpump_chosenRole', chosenRole);
-      roleClientBtn.classList.toggle('active', isClient);
-      roleTrainerBtn.classList.toggle('active', !isClient);
-      roleHint.innerHTML = `You’re logging in as <span class="accent-text font-semibold">${isClient ? 'Client' : 'Trainer'}</span>.`;
-      regClient.classList.toggle('hidden', !isClient);
-      regTrainer.classList.toggle('hidden', isClient);
-    }
-    roleClientBtn.addEventListener('click', () => setRole('client'));
-    roleTrainerBtn.addEventListener('click', () => setRole('trainer'));
-    setRole(chosenRole);
-
-    // ---- Helpers ----
+    // Helpers
     const $ = (id) => document.getElementById(id);
-    const emailEl = $('email');
-    const pwEl = $('password');
-    const rememberEl = $('remember');
-    const statusEl = $('status');
-    const loginBtn = $('loginBtn');
-
-    // Clean email input
-    (() => {
-      if (!emailEl) return;
-      emailEl.addEventListener('input', () => { emailEl.value = emailEl.value.replace(/\s+/g, ''); });
-      emailEl.addEventListener('blur',  () => { emailEl.value = emailEl.value.trim(); });
-    })();
+    const emailEl   = $('email');
+    const pwEl      = $('password');
+    const rememberEl= $('remember');
+    const statusEl  = $('status');
+    const loginBtn  = $('loginBtn');
 
     function friendlyAuthError(err){
       const code = String(err?.code || '');
@@ -158,46 +151,26 @@
       if (code.includes('network-request-failed')) return 'Network error. Check your connection.';
       return err?.message || 'Something went wrong. Please try again.';
     }
-    function routeFor(role) {
-      const next = new URLSearchParams(location.search).get('next');
-      return role === 'trainer' ? (next || 'trainer-dashboard.html') : (next || 'index.html');
+
+    function routeFor(role){ return role==='trainer' ? 'trainer-dashboard.html' : 'index.html'; }
+
+    async function fetchUserRole(uid){
+      const snap = await getDoc(doc(db,'users',uid));
+      if(!snap.exists()) throw new Error('Profile not found. Please contact support.');
+      const data = snap.data() || {};
+      const role = Array.isArray(data.roles) ? String(data.roles[0] || 'client').toLowerCase()
+                                             : String(data.role || 'client').toLowerCase();
+      if(role!=='client' && role!=='trainer') throw new Error('Invalid role on profile. Please contact support.');
+      return role;
     }
 
-    function rememberRole(role){
-      try {
-        if (!role) return;
-        sessionStorage.setItem('ironpump_lastRole', role);
-        localStorage.setItem('ironpump_lastRole', role);
-      } catch {}
+    // Clean email input
+    if (emailEl){
+      emailEl.addEventListener('input', () => { emailEl.value = emailEl.value.replace(/\s+/g, ''); });
+      emailEl.addEventListener('blur',  () => { emailEl.value = emailEl.value.trim(); });
     }
 
-    async function fetchUserRole(uid, fallbackRole) {
-      try {
-        const snap = await getDoc(doc(db, 'users', uid));
-        if (snap.exists()) {
-          const data = snap.data() || {};
-          // Accept either role: "client"/"trainer" or roles: ["client", ...]
-          const stored = Array.isArray(data.roles)
-            ? String(data.roles[0] || 'client').toLowerCase()
-            : String(data.role || 'client').toLowerCase();
-          return stored === 'trainer' ? 'trainer' : 'client';
-        }
-        console.warn('[Login] No /users doc for uid; using selected tab as fallback:', fallbackRole);
-      } catch (e) {
-        console.warn('[Login] getDoc failed, using fallback role:', e);
-      }
-      return (fallbackRole || 'client').toLowerCase();
-    }
-
-    function showRoleMismatchError(selected, actual){
-      const want = selected === 'trainer' ? 'Trainer' : 'Client';
-      const have = actual   === 'trainer' ? 'Trainer' : 'Client';
-      statusEl.style.color = '#ff6b6b';
-      statusEl.textContent =
-        `This account is ${have}. Switch the toggle to ${have} or register a new ${want} account.`;
-    }
-
-    // ---- Password eye toggle ----
+    // Toggle password visibility
     document.getElementById('togglePw').addEventListener('click', () => {
       const isPassword = pwEl.type === 'password';
       pwEl.type = isPassword ? 'text' : 'password';
@@ -206,8 +179,8 @@
       if (iconEl) { iconEl.setAttribute('data-feather', icon); feather.replace(); }
     });
 
-    // ---- Forgot password ----
-    document.getElementById('forgotBtn').addEventListener('click', async () => {
+    // Forgot password
+    $('forgotBtn').addEventListener('click', async () => {
       const email = emailEl.value.trim();
       statusEl.style.color = 'var(--muted)';
       statusEl.textContent = '';
@@ -220,8 +193,8 @@
       }
     });
 
-    // ---- Login submit (STRICT role enforcement) ----
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    // Submit → sign in → fetch role → route
+    $('loginForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       const email = emailEl.value.trim();
       const pass  = pwEl.value;
@@ -236,23 +209,19 @@
           ? browserLocalPersistence
           : browserSessionPersistence);
 
-        // 1) Sign in
         const cred = await signInWithEmailAndPassword(auth, email, pass);
 
-        // 2) Get Firestore role (source of truth)
-        const actualRole = await fetchUserRole(cred.user.uid, 'client');
-
-        // 3) STRICT MATCH: selected toggle must equal Firestore role
-        if (actualRole !== chosenRole) {
-          // Block, message, and sign out
-          showRoleMismatchError(chosenRole, actualRole);
-          try { await signOut(auth); } catch {}
+        let role = 'client';
+        try { role = await fetchUserRole(cred.user.uid); }
+        catch (roleErr){
+          // Block access if profile is missing/bad; sign out for safety
+          try{ await signOut(auth); }catch{}
+          statusEl.textContent = roleErr.message || 'Profile error. Please contact support.';
+          statusEl.style.color = '#ff6b6b';
           return;
         }
 
-        // 4) Proceed to the correct area
-        rememberRole(actualRole);
-        location.replace(routeFor(actualRole));
+        location.replace(routeFor(role));
 
       } catch (e) {
         console.error('[Auth] signIn failed:', e.code, e.message);
@@ -263,13 +232,17 @@
       }
     });
 
-    // ---- Already signed-in case: send to correct dashboard by Firestore role
-    onAuthStateChanged(auth, async (u) => {
-      if (!u) return;
-      try { await reload(u); } catch {}
-      const actualRole = await fetchUserRole(u.uid, 'client');
-      rememberRole(actualRole);
-      location.replace(routeFor(actualRole));
+    // If user returns here via back button after being logged in, push them out by role
+    onAuthStateChanged(auth, async (u)=>{
+      if(!u) return;
+      try{ await reload(u); }catch{}
+      try{
+        const role = await fetchUserRole(u.uid);
+        location.replace(routeFor(role));
+      }catch(_){
+        // if profile missing while signed-in, safest is sign out + stay
+        try{ await signOut(auth); }catch{}
+      }
     });
   </script>
 </body>
