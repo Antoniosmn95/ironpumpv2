@@ -9,16 +9,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Optional guarded init -->
+  <!-- Your modular Firebase init -->
   <script type="module" src="firebase-init.js"></script>
 
-  <!-- Firebase compat SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-storage-compat.js"></script>
-
-  <!-- Option B (Themed popup): Flatpickr -->
+  <!-- Flatpickr (optional themed date picker) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
@@ -79,27 +73,20 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ========= Option A: Native date input, matching app colors ========= */
-    input[type="date"]{
-      color-scheme: dark;                 /* dark popup styling for supported browsers */
-      accent-color: var(--accent);        /* selection/focus accent where supported */
-    }
-    /* Default (password-eye/muted) */
+    /* Native date input tweaks */
+    input[type="date"]{ color-scheme: dark; accent-color: var(--accent); }
     input[type="date"]::-webkit-calendar-picker-indicator{
-      opacity: 1;
-      background: url("data:image/svg+xml;utf8,\
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23909090' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
+      opacity:1;background:url("data:image/svg+xml;utf8,\
+        <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23909090' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
         <rect x='3' y='4' width='18' height='18' rx='2' ry='2'/>\
         <line x1='16' y1='2' x2='16' y2='6'/>\
         <line x1='8' y1='2' x2='8' y2='6'/>\
         <line x1='3' y1='10' x2='21' y2='10'/>\
-      </svg>") no-repeat center / 18px 18px;
-      cursor: pointer;
+      </svg>") no-repeat center/18px 18px;
     }
-    /* On focus, switch to accent */
     input[type="date"]:focus::-webkit-calendar-picker-indicator{
-      background-image: url("data:image/svg+xml;utf8,\
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397FB57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
+      background-image:url("data:image/svg+xml;utf8,\
+        <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397FB57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
         <rect x='3' y='4' width='18' height='18' rx='2' ry='2'/>\
         <line x1='16' y1='2' x2='16' y2='6'/>\
         <line x1='8' y1='2' x2='8' y2='6'/>\
@@ -107,42 +94,15 @@
       </svg>");
     }
 
-    /* ========= Option B: Themed Flatpickr popup (matches IronPump) ========= */
-    .flatpickr-calendar{
-      background:#171717;
-      border:1px solid rgba(144,144,144,.35);
-      box-shadow:0 10px 30px rgba(0,0,0,.45);
-      color:var(--light);
-    }
-    .flatpickr-months, .flatpickr-weekdays{
-      background:#161616; color:var(--light);
-      border-bottom:1px solid rgba(144,144,144,.25);
-    }
-    .flatpickr-current-month .flatpickr-monthDropdown-months,
-    .flatpickr-current-month input.cur-year{ color:var(--light); }
-    .flatpickr-weekday{ color:var(--muted); }
+    /* Flatpickr theme (dark) */
+    .flatpickr-calendar{ background:#171717;border:1px solid rgba(144,144,144,.35);box-shadow:0 10px 30px rgba(0,0,0,.45);color:var(--light); }
+    .flatpickr-months,.flatpickr-weekdays{ background:#161616;color:var(--light);border-bottom:1px solid rgba(144,144,144,.25); }
+    .flatpickr-current-month .flatpickr-monthDropdown-months,.flatpickr-current-month input.cur-year{ color:var(--light); }
+    .flatpickr-weekday{ color:#fff; }
     .flatpickr-day{ color:var(--light); border-radius:.45rem; }
     .flatpickr-day:hover{ background:#222; }
-    .flatpickr-day.today{ box-shadow: inset 0 0 0 2px var(--accent); color:var(--light); }
-    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange{
-      background:var(--accent); color:var(--bg);
-    }
-
-    /* Change day of the week color to white */
-    .flatpickr-weekday {
-      color: #FFFFFF; /* Set day of the week text color to white */
-    }
-
-    /* Change year picker arrows to white */
-    .flatpickr-current-month .flatpickr-prev-month,
-    .flatpickr-current-month .flatpickr-next-month {
-      color: #FFFFFF; /* Set arrow color to white */
-    }
-
-    .flatpickr-current-month .flatpickr-prev-month:hover,
-    .flatpickr-current-month .flatpickr-next-month:hover {
-      color: #CCCCCC; /* Slightly lighter shade on hover */
-    }
+    .flatpickr-day.today{ box-shadow: inset 0 0 0 2px var(--accent); }
+    .flatpickr-day.selected,.flatpickr-day.startRange,.flatpickr-day.endRange{ background:var(--accent); color:var(--bg); }
   </style>
 </head>
 <body class="min-h-[100svh] flex items-start justify-center p-3 md:p-4">
@@ -159,14 +119,14 @@
           <div class="stack">
             <label for="email">Email</label>
             <input id="email" type="email" required
-              pattern="^[^@\s]+@[^@\s]+\.[^@\s]+$"
+              pattern="^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               autocapitalize="none" autocomplete="email" spellcheck="false" autocorrect="off"
               class="input" placeholder="you@example.com"/>
           </div>
           <div class="stack">
             <label for="password">Password</label>
             <div class="relative">
-              <input id="password" type="password" required minlength="6" pattern="^\S+$"
+              <input id="password" type="password" required minlength="6" pattern="^\\S+$"
                 class="input pr-10" placeholder="••••••••" autocomplete="new-password"/>
               <button type="button" id="togglePw"
                 class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted"
@@ -177,13 +137,13 @@
           </div>
           <div class="stack">
             <label for="password2">Confirm Password</label>
-            <input id="password2" type="password" required pattern="^\S+$"
+            <input id="password2" type="password" required pattern="^\\S+$"
               class="input" placeholder="Repeat password" autocomplete="new-password"/>
           </div>
           <div class="stack">
             <label for="fullName">Full Name</label>
             <input id="fullName" type="text"
-              pattern="^[A-Za-z\u0600-\u06FF\s]{2,}$"
+              pattern="^[A-Za-z\\u0600-\\u06FF\\s]{2,}$"
               title="Only letters and spaces are allowed"
               class="input" placeholder="Your name" autocomplete="name"/>
           </div>
@@ -207,7 +167,7 @@
           <div class="stack">
             <label for="phone">Phone Number</label>
             <input id="phone" type="tel" inputmode="tel" maxlength="17"
-              pattern="^\+?[0-9][0-9\s\-]{5,14}$"
+              pattern="^\\+?[0-9][0-9\\s\\-]{5,14}$"
               title="Digits only (6–15), spaces and - allowed, optional + at start"
               class="input" placeholder="+961 71 234 567"/>
           </div>
@@ -253,7 +213,7 @@
           <div class="stack">
             <label for="languages">Languages (comma-separated)</label>
             <input id="languages" type="text"
-              pattern="^[A-Za-z\u0600-\u06FF,\s]+$"
+              pattern="^[A-Za-z\\u0600-\\u06FF,\\s]+$"
               title="Only letters (Arabic/Latin), commas and spaces"
               class="input" placeholder="English, Arabic"/>
           </div>
@@ -319,24 +279,25 @@
     <p class="text-[11px] text-center text-muted mt-3">By registering you agree to our Terms & Privacy Policy.</p>
   </main>
 
-  <script>
+  <script type="module">
     feather.replace();
 
-    // Firebase init
-    const firebaseConfig = {
-      apiKey: "AIzaSyC__WTjynMQABP5M9GUQ19-PAJOIrh5dkw",
-      authDomain: "ironpump-gym-tracker.firebaseapp.com",
-      projectId: "ironpump-gym-tracker",
-      storageBucket: "ironpump-gym-tracker.firebasestorage.app",
-      messagingSenderId: "267000647709",
-      appId: "1:267000647709:web:5b83150b042c3e65ff76f4",
-      measurementId: "G-BG3TDDWXZH"
-    };
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
+    import {
+      getAuth, createUserWithEmailAndPassword, onAuthStateChanged,
+      sendEmailVerification, updateProfile, reload, signOut
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+    import {
+      getFirestore, doc, setDoc, serverTimestamp
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+    import {
+      getStorage, ref, uploadBytes, getDownloadURL
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
 
-    const auth = firebase.auth();
-    const db = firebase.firestore();
-    const storage = firebase.storage();
+    // Use the single initialized app; fallback to local if not exported
+    const auth = exportedAuth || getAuth(app);
+    const db   = exportedDb   || getFirestore(app);
+    const storage = getStorage(app); // bucket from firebase-init.js (appspot.com)
 
     // Helpers
     const $ = (id) => document.getElementById(id);
@@ -377,7 +338,6 @@
       e.target.value = e.target.value.replace(/[^A-Za-z\u0600-\u06FF,\s]/g, '');
     });
 
-    // Confirm password validity
     function syncPasswordMatch(){
       const p1 = $('password').value;
       const p2 = $('password2');
@@ -386,34 +346,6 @@
     }
     $('password').addEventListener('input', syncPasswordMatch);
     $('password2').addEventListener('input', syncPasswordMatch);
-
-    // Auth gate
-    auth.onAuthStateChanged(async (u) => {
-      if (!u) return;
-      try { await u.reload(); } catch {}
-      if (u.emailVerified) {
-        location.href = 'index.html';
-      } else {
-        showVerifyPanel(u.email);
-      }
-    });
-
-    function showVerifyPanel(email){
-      $('vEmail')?.remove(); // ensure unique
-      const span = document.createElement('span');
-      span.id = 'vEmail'; span.className = 'font-medium';
-      span.textContent = email || '';
-      const p = document.querySelector('#verifyPanel .text-muted');
-      if (p) {
-        const container = p.querySelector('#vEmail') ? p : p.parentElement;
-        const target = document.getElementById('vEmail') || span;
-        if (!document.getElementById('vEmail')) p.querySelector('span.font-medium')?.replaceWith(span);
-      }
-      document.getElementById('verifyPanel').classList.remove('hidden');
-      const hint = document.getElementById('verifyHint');
-      if (hint) { hint.textContent = 'Tip: Sometimes it lands in Spam/Promotions.'; hint.style.color = 'var(--muted)'; }
-    }
-    function hideVerifyPanel(){ document.getElementById('verifyPanel').classList.add('hidden'); }
 
     // Days segmented control
     const buttons = document.querySelectorAll('.day-btn');
@@ -430,6 +362,26 @@
     }
     buttons.forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.value)));
     setActive('4');
+
+    // Auth gate
+    onAuthStateChanged(auth, async (u) => {
+      if (!u) return;
+      try { await reload(u); } catch {}
+      if (u.emailVerified) {
+        location.href = 'index.html';
+      } else {
+        showVerifyPanel(u.email);
+      }
+    });
+
+    function showVerifyPanel(email){
+      const span = $('vEmail');
+      if (span) span.textContent = email || '';
+      $('verifyPanel').classList.remove('hidden');
+      const hint = $('verifyHint');
+      if (hint) { hint.textContent = 'Tip: Sometimes it lands in Spam/Promotions.'; hint.style.color = 'var(--muted)'; }
+    }
+    function hideVerifyPanel(){ $('verifyPanel').classList.add('hidden'); }
 
     // Submit
     document.getElementById('signupForm').addEventListener('submit', async (e) => {
@@ -467,23 +419,24 @@
       try{
         setLoading(true);
 
-        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
 
-        // Photo
+        // Photo upload (optional)
         let photoURL = '';
         if (photoFile) {
           if (photoFile.size > 5 * 1024 * 1024) throw new Error('Image too large (max 5 MB).');
-          const ref = storage.ref().child(`users/${uid}/profile.jpg`);
-          await ref.put(photoFile);
-          photoURL = await ref.getDownloadURL();
-          await cred.user.updateProfile({ displayName: fullName || '', photoURL });
+          const key = `users/${uid}/profile.jpg`;
+          const r = ref(storage, key);
+          await uploadBytes(r, photoFile, { contentType: photoFile.type || 'image/jpeg' });
+          photoURL = await getDownloadURL(r);
+          await updateProfile(cred.user, { displayName: fullName || '', photoURL });
         } else {
-          await cred.user.updateProfile({ displayName: fullName || '' });
+          await updateProfile(cred.user, { displayName: fullName || '' });
         }
 
-        // Save profile
-        await db.collection('users').doc(uid).set({
+        // Save /users/{uid} with role=client
+        await setDoc(doc(db, 'users', uid), {
           role: 'client',
           email, fullName, phone, height, weight, dateOfBirth: dob, country,
           languages: languages ? languages.split(',').map(s=>s.trim()).filter(Boolean) : [],
@@ -491,11 +444,11 @@
           daysPerWeek: days,
           additionalInfo: extra,
           photoURL,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
 
-        await cred.user.sendEmailVerification();
+        await sendEmailVerification(cred.user);
 
         showSuccess('Account created! Check your email to verify.');
         document.getElementById('verifyPanel').classList.remove('hidden');
@@ -513,7 +466,7 @@
     async function checkVerificationOnce(){
       const u = auth.currentUser;
       if (!u) return;
-      try { await u.reload(); } catch {}
+      try { await reload(u); } catch {}
       if (u.emailVerified) {
         hideVerifyPanel();
         showSuccess('Email verified! Redirecting to your dashboard…');
@@ -529,18 +482,18 @@
     document.getElementById('btnResend').addEventListener('click', async () => {
       const u = auth.currentUser;
       try {
-        await u.sendEmailVerification();
-        const hint = document.getElementById('verifyHint');
+        await sendEmailVerification(u);
+        const hint = $('verifyHint');
         hint.textContent = 'Verification email sent again.';
         hint.style.color = 'var(--accent)';
       } catch {
-        const hint = document.getElementById('verifyHint');
+        const hint = $('verifyHint');
         hint.textContent = 'Could not resend. Please try again later.';
         hint.style.color = '#ff6b6b';
       }
     });
     document.getElementById('btnChangeEmail').addEventListener('click', async () => {
-      try { await auth.signOut(); } catch {}
+      try { await signOut(auth); } catch {}
       location.reload();
     });
 
@@ -555,16 +508,11 @@
           default: return err.message || 'Sign up failed. Please try again.';
         }
       }
-      if (code.startsWith('storage/')) {
-        if (code.includes('unauthorized')) return 'You don’t have permission to upload this image.';
-        if (code.includes('canceled')) return 'Image upload was canceled.';
-        return 'Image upload failed. Try another image.';
-      }
       if (code.includes('permission-denied')) return 'You don’t have permission to save your profile.';
       return err.message || 'Something went wrong. Please try again.';
     }
 
-    /* ========= Initialize Option B if available; fallback is Option A ========= */
+    // Flatpickr (optional)
     window.addEventListener('DOMContentLoaded', () => {
       if (window.flatpickr) {
         flatpickr("#dob", {
@@ -572,7 +520,7 @@
           minDate: "1900-01-01",
           maxDate: "today",
           allowInput: true,
-          disableMobile: true   // keep the themed popup on mobile too
+          disableMobile: true
         });
       }
     });
