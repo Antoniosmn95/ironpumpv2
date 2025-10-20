@@ -13,7 +13,6 @@
   <style>html.__gate-hide body{visibility:hidden}</style>
   <script>
     document.documentElement.classList.add("__gate-hide");
-    // Safety: if anything fails, unhide after 2s
     setTimeout(()=>document.documentElement.classList.remove("__gate-hide"), 2000);
   </script>
 
@@ -30,28 +29,41 @@
     const db   = exportedDb   || getFirestore(app);
     const routeFor = (role) => role === "trainer" ? "trainer-dashboard.html" : "client-dashboard.html";
 
-    try {
-      onAuthStateChanged(auth, async (u)=>{
-        try { if (u) await reload(u); } catch {}
-        if (!u) {
-          document.documentElement.classList.remove("__gate-hide");
-          return;
-        }
-        try {
-          const snap = await getDoc(doc(db, "users", u.uid));
-          const d = snap.exists() ? (snap.data() || {}) : {};
-          const role = Array.isArray(d.roles) ? String(d.roles[0]||"client").toLowerCase()
-                                              : String(d.role||"client").toLowerCase();
-          try { sessionStorage.setItem("ironpump_lastRole", role); localStorage.setItem("ironpump_lastRole", role); } catch {}
-          location.replace(routeFor(role));
-        } catch {
-          // If Firestore read fails, just show the form
-          document.documentElement.classList.remove("__gate-hide");
-        }
-      });
-    } catch {
-      document.documentElement.classList.remove("__gate-hide");
+    async function fetchRoleWithRetry(uid, {tries=4, baseDelay=200} = {}){
+      let lastErr;
+      for (let i=0;i<tries;i++){
+        try{
+          const snap = await getDoc(doc(db,"users",uid));
+          if (snap.exists()){
+            const d = snap.data() || {};
+            const role = Array.isArray(d.roles) ? String(d.roles[0]||"client").toLowerCase()
+                                                : String(d.role||"client").toLowerCase();
+            if (role === 'client' || role === 'trainer') return role;
+          }
+          // no doc yet → wait and retry
+        }catch(e){ lastErr = e; }
+        await new Promise(r=>setTimeout(r, baseDelay * 2**i));
+      }
+      if (lastErr) throw lastErr;
+      // Fallback to last known role (signup stores this), else client
+      try{
+        const cached = sessionStorage.getItem("ironpump_lastRole") || localStorage.getItem("ironpump_lastRole");
+        if (cached) return cached;
+      }catch{}
+      return "client";
     }
+
+    onAuthStateChanged(auth, async (u)=>{
+      try { if (u) await reload(u); } catch {}
+      if (!u) { document.documentElement.classList.remove("__gate-hide"); return; }
+      try{
+        const role = await fetchRoleWithRetry(u.uid);
+        try { sessionStorage.setItem("ironpump_lastRole", role); localStorage.setItem("ironpump_lastRole", role); } catch {}
+        location.replace(routeFor(role));
+      }catch{
+        document.documentElement.classList.remove("__gate-hide");
+      }
+    });
   </script>
 
   <style>
@@ -124,7 +136,6 @@
   </main>
 
   <script type="module">
-    // Guard feather usage to avoid "feather is not defined"
     if (window.feather && typeof window.feather.replace === "function") {
       try { window.feather.replace(); } catch {}
     }
@@ -160,22 +171,31 @@
       return err?.message || 'Something went wrong. Please try again.';
     }
 
-    async function fetchUserRole(uid){
-      const snap = await getDoc(doc(db,'users',uid));
-      if(!snap.exists()) throw new Error('Profile not found. Please contact support.');
-      const data = snap.data() || {};
-      const role = Array.isArray(data.roles) ? String(data.roles[0] || 'client').toLowerCase()
-                                             : String(data.role || 'client').toLowerCase();
-      if(role!=='client' && role!=='trainer') throw new Error('Invalid role on profile.');
-      try { sessionStorage.setItem('ironpump_lastRole', role); localStorage.setItem('ironpump_lastRole', role); } catch {}
-      return role;
+    async function fetchRoleWithRetry(uid, {tries=4, baseDelay=200} = {}){
+      let lastErr;
+      for (let i=0;i<tries;i++){
+        try{
+          const snap = await getDoc(doc(db,'users',uid));
+          if (snap.exists()){
+            const data = snap.data() || {};
+            const role = Array.isArray(data.roles) ? String(data.roles[0] || 'client').toLowerCase()
+                                                   : String(data.role || 'client').toLowerCase();
+            if (role === 'client' || role === 'trainer') return role;
+          }
+        }catch(e){ lastErr = e; }
+        await new Promise(r=>setTimeout(r, baseDelay * 2**i));
+      }
+      if (lastErr) throw lastErr;
+      try{
+        const cached = sessionStorage.getItem('ironpump_lastRole') || localStorage.getItem('ironpump_lastRole');
+        if (cached) return cached;
+      }catch{}
+      return 'client';
     }
 
     // Email cleanup
-    if (emailEl){
-      emailEl.addEventListener('input',()=>{ emailEl.value=emailEl.value.replace(/\s+/g,''); });
-      emailEl.addEventListener('blur',()=>{ emailEl.value=emailEl.value.trim(); });
-    }
+    emailEl?.addEventListener('input',()=>{ emailEl.value=emailEl.value.replace(/\s+/g,''); });
+    emailEl?.addEventListener('blur',()=>{ emailEl.value=emailEl.value.trim(); });
 
     // Password toggle
     $('togglePw').addEventListener('click',()=>{
@@ -210,7 +230,11 @@
         loginBtn.disabled=true;
         await setPersistence(auth,rememberEl.checked?browserLocalPersistence:browserSessionPersistence);
         const cred=await signInWithEmailAndPassword(auth,email,pass);
-        const role=await fetchUserRole(cred.user.uid);
+
+        // Retry a few times to avoid the "fresh signup" race where users/{uid} may not exist immediately.
+        const role=await fetchRoleWithRetry(cred.user.uid);
+
+        try { sessionStorage.setItem('ironpump_lastRole', role); localStorage.setItem('ironpump_lastRole', role); } catch {}
         location.replace(routeFor(role));
       }catch(e){
         console.error('[Auth] signIn failed:',e.code,e.message);
@@ -220,12 +244,13 @@
       }
     });
 
-    // If already signed in, route out of login
+    // If already signed in, route out of login (also with retry)
     onAuthStateChanged(auth,async(u)=>{
       if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
       try{ await reload(u); }catch{}
       try{
-        const role=await fetchUserRole(u.uid);
+        const role=await fetchRoleWithRetry(u.uid);
+        try { sessionStorage.setItem('ironpump_lastRole', role); localStorage.setItem('ironpump_lastRole', role); } catch {}
         location.replace(routeFor(role));
       }catch(_){
         try{ await signOut(auth); }catch{}
