@@ -165,13 +165,13 @@
 
   <!-- ===== Page JS ===== -->
   <script type="module">
-    // Require client role for this page
+    // -------------- Access gate --------------
     await window.AuthGuard?.requireRole?.('client');
 
-    // Icons
+    // -------------- Icons --------------
     try { feather.replace(); } catch {}
 
-    // Dropdown menu logic
+    // -------------- Header dropdown --------------
     const userMenuBtn = document.getElementById('userMenuBtn');
     const userMenu = document.getElementById('userMenu');
     function setMenu(open){
@@ -193,7 +193,7 @@
     });
     document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ setMenu(false); }});
 
-    // Sign Out wiring (uses AuthGuard.signOut → redirects to login.html)
+    // -------------- Sign out (AuthGuard) --------------
     const signOutBtn = document.getElementById('menuSignOut');
     signOutBtn?.addEventListener('click', async (e) => {
       e.preventDefault();
@@ -208,52 +208,78 @@
       }
     });
 
-    // ----- Avatar defaults (gender-based) -----
+    // -------------- Avatar defaults (gender-based) --------------
     const DEFAULT_MAN   = 'man.png';    // adjust path if needed
     const DEFAULT_WOMAN = 'woman.png';  // adjust path if needed
+    const genderDefault = (g)=> (String(g||'male').toLowerCase()==='female' ? DEFAULT_WOMAN : DEFAULT_MAN);
 
-    // Welcome header (via AuthGuard)
+    // -------------- Welcome header wiring --------------
     const welcomeWrap = document.getElementById('welcomeWrap');
     const fullNameEl  = document.getElementById('userFullName');
     const avatarEl    = document.getElementById('userAvatar');
 
-    // Helper to select default by gender
-    function genderDefault(g){
-      return (String(g||'male').toLowerCase() === 'female') ? DEFAULT_WOMAN : DEFAULT_MAN;
+    // Robust profile loader: Firestore first, then Auth; fallback to gender default avatar.
+    import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
+    import { getAuth, onAuthStateChanged, reload } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+    import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+
+    const auth = exportedAuth || getAuth(app);
+    const db   = exportedDb   || getFirestore(app);
+
+    async function loadFirestoreProfile(uid){
+      try{
+        const snap = await getDoc(doc(db,'users',uid));
+        return snap.exists() ? (snap.data()||null) : null;
+      }catch(e){
+        console.warn('[Profile] Firestore read failed:', e);
+        return null;
+      }
     }
 
-    window.AuthGuard?.onAuth?.(async (user) => {
-      if (!user) {
+    // Some installs use AuthGuard.getProfile; we’ll call it too if available,
+    // but prefer Firestore directly to avoid race conditions.
+    async function loadProfile(uid){
+      const byFs = await loadFirestoreProfile(uid);
+      if (byFs) return byFs;
+      try{
+        const byGuard = await window.AuthGuard?.getProfile?.();
+        if (byGuard) return byGuard;
+      }catch{}
+      return null;
+    }
+
+    onAuthStateChanged(auth, async (user)=>{
+      if (!user){
         welcomeWrap.classList.add('hidden');
         return;
       }
-      // Prefer Firestore profile fields saved at signup
-      // (photoURL, fullName, gender) and fall back to Firebase Auth fields.
-      const p = await window.AuthGuard.getProfile?.();
+      try{ await reload(user); }catch{}
 
-      const displayName = p?.fullName || user.displayName || user.email || 'Athlete';
+      // Load profile
+      const p = await loadProfile(user.uid);
+
+      const displayName =
+        (p?.fullName && p.fullName.trim()) ? p.fullName :
+        (user.displayName && user.displayName.trim()) ? user.displayName :
+        user.email || 'Athlete';
+
       const gender = (p?.gender || '').toLowerCase();
       const defaultPhoto = genderDefault(gender);
 
-      // Choose the best photo: Firestore photoURL (uploaded or gender default saved at signup),
-      // else Auth photoURL, else current gender default.
-      const candidatePhoto = (p?.photoURL && p.photoURL.trim()) ? p.photoURL
-                            : (user.photoURL && String(user.photoURL).trim()) ? user.photoURL
-                            : defaultPhoto;
+      const photo =
+        (p?.photoURL && String(p.photoURL).trim()) ? p.photoURL :
+        (user.photoURL && String(user.photoURL).trim()) ? user.photoURL :
+        defaultPhoto;
 
       fullNameEl.textContent = displayName;
-      avatarEl.src = candidatePhoto;
-
-      // If candidate fails to load (broken URL), force gender default.
-      avatarEl.onerror = () => {
-        avatarEl.onerror = null; // prevent loop
-        avatarEl.src = defaultPhoto;
-      };
+      avatarEl.src = photo;
+      avatarEl.onerror = () => { avatarEl.onerror = null; avatarEl.src = defaultPhoto; };
 
       welcomeWrap.classList.remove('hidden');
+      try { feather.replace(); } catch {}
     });
 
-    /* ============ Calendar (UI only) ============ */
+    // -------------- Calendar (UI only) --------------
     const calendarBtn = document.getElementById('calendarBtn');
     const calendarModal = document.getElementById('calendarModal');
     const closeCalendar = document.getElementById('closeCalendar');
@@ -337,7 +363,7 @@
     yearSelect.addEventListener('change',  (e) => { viewYear  = Number(e.target.value);  renderCalendar(); });
 
     // Export Month (empty table)
-    document.getElementById('exportMonthPDF').addEventListener('click', () => {
+    exportMonthBtn.addEventListener('click', () => {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       doc.setFontSize(18);
