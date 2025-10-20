@@ -1,225 +1,129 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Login — IronPump</title>
+<script type="module">
+  feather.replace();
 
-  <!-- UI libs -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/feather-icons"></script>
+  import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
+  import {
+    getAuth, setPersistence,
+    browserLocalPersistence, browserSessionPersistence,
+    signInWithEmailAndPassword, sendPasswordResetEmail,
+    onAuthStateChanged, reload, signOut
+  } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+  import {
+    getFirestore, doc, getDoc, setDoc, serverTimestamp
+  } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 
-  <!-- Prevent flicker while pre-auth gate decides -->
-  <style>html.__gate-hide body{visibility:hidden}</style>
-  <script>document.documentElement.classList.add("__gate-hide")</script>
+  const auth = exportedAuth || getAuth(app);
+  const db   = exportedDb   || getFirestore(app);
 
-  <!-- Firebase init -->
-  <script type="module" src="firebase-init.js"></script>
+  const $ = (id) => document.getElementById(id);
+  const emailEl = $('email');
+  const pwEl = $('password');
+  const rememberEl = $('remember');
+  const statusEl = $('status');
+  const loginBtn = $('loginBtn');
 
-  <!-- Pre-auth gate: if already signed-in, route by role -->
-  <script type="module">
-    import { app, auth as exportedAuth, db as exportedDb } from "./firebase-init.js";
-    import { getAuth, onAuthStateChanged, reload } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+  const routeFor = (role) => role === 'trainer'
+    ? 'trainer-dashboard.html'
+    : 'client-dashboard.html';
 
-    const auth = exportedAuth || getAuth(app);
-    const db   = exportedDb   || getFirestore(app);
+  function friendlyAuthError(err){
+    const code = String(err?.code || '');
+    if (code.includes('invalid-credential')) return 'Email or password is incorrect.';
+    if (code.includes('user-not-found')) return 'No account found with that email.';
+    if (code.includes('wrong-password')) return 'Email or password is incorrect.';
+    if (code.includes('too-many-requests')) return 'Too many attempts. Please try again later.';
+    if (code.includes('network-request-failed')) return 'Network error. Check your connection.';
+    return err?.message || 'Something went wrong. Please try again.';
+  }
 
-    const routeFor = (role) => role === "trainer" ? "trainer-dashboard.html" : "client-dashboard.html"; /* CHANGED */
+  // 🔧 NEW: ensure profile exists (bootstrap if missing), return role
+  async function ensureUserProfileAndGetRole(user){
+    const ref = doc(db,'users', user.uid);
+    const snap = await getDoc(ref);
 
-    onAuthStateChanged(auth, async (u)=>{
-      if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
-      try{ await reload(u); }catch{}
-      try{
-        const snap = await getDoc(doc(db, "users", u.uid));
-        if (snap.exists()){
-          const d = snap.data() || {};
-          const role = Array.isArray(d.roles) ? String(d.roles[0]||"client").toLowerCase()
-                                              : String(d.role||"client").toLowerCase();
-          try { sessionStorage.setItem("ironpump_lastRole", role); localStorage.setItem("ironpump_lastRole", role); } catch {}
-          location.replace(routeFor(role));
-          return;
-        }
-      }catch(_){}
-      location.replace("client-dashboard.html"); /* CHANGED */
-    });
-  </script>
-
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    :root{ --accent:#97FB57; --bg:#121212; --muted:#909090; --light:#F6F2F2; }
-    html,body{height:100%}
-    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--light)}
-    .panel{background:#161616;border:1px solid rgba(144,144,144,.35)}
-    .accent-text{color:var(--accent)}
-    .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 0 12px rgba(151,251,87,.45), inset 0 0 0 1px rgba(18,18,18,.4);transition:filter .15s ease, transform .05s ease}
-    .btn-accent:hover{filter:brightness(.95)}
-    .btn-accent:active{transform:translateY(1px)}
-    .text-muted{color:var(--muted)}
-    .input{width:100%;padding:.6rem .75rem;border-radius:.75rem;background:#1e1e1e;border:1px solid rgba(144,144,144,.35);outline:none}
-    .input:focus{outline:2px solid var(--accent)}
-    .logo{width:80px;height:auto;margin:0 auto 10px;display:block}
-    a.link{color:var(--accent);font-weight:500}
-    a.link:hover{text-decoration:underline}
-  </style>
-</head>
-<body class="min-h-screen flex items-center justify-center p-4">
-  <main class="w-full max-w-md">
-    <div class="text-center mb-2">
-      <img src="ironpump.png" alt="IronPump Logo" class="logo">
-      <h1 class="text-3xl font-bold tracking-tight"><span class="accent-text">Iron</span>Pump</h1>
-    </div>
-
-    <section class="panel rounded-2xl p-6">
-      <form id="loginForm" class="space-y-4" novalidate>
-        <div>
-          <label for="email" class="block text-sm mb-1">Email</label>
-          <input id="email" type="email" required class="input" placeholder="you@example.com" autocomplete="email"/>
-        </div>
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label for="password" class="block text-sm">Password</label>
-            <button type="button" id="forgotBtn" class="text-sm link">Forgot password?</button>
-          </div>
-          <div class="relative">
-            <input id="password" type="password" required class="input pr-10" placeholder="••••••••" autocomplete="current-password"/>
-            <button type="button" id="togglePw" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted" aria-label="Show password">
-              <i data-feather="eye"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between gap-2 flex-wrap">
-          <label class="inline-flex items-center gap-2 text-sm">
-            <input id="remember" type="checkbox" class="accent-[var(--accent)]">
-            <span>Remember me</span>
-          </label>
-        </div>
-
-        <button id="loginBtn" class="w-full btn-accent py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
-          <i data-feather="log-in" class="w-4 h-4"></i><span>Log In</span>
-        </button>
-
-        <p id="status" class="text-sm mt-2 text-center text-muted"></p>
-
-        <p class="text-center text-sm text-muted mt-4">
-          Don’t have an account?
-          <a href="signup.html" class="link">Sign up</a>
-        </p>
-      </form>
-    </section>
-
-    <p class="text-center text-xs text-muted mt-4">
-      By continuing you agree to our Terms & Privacy Policy.
-    </p>
-  </main>
-
-  <script type="module">
-    feather.replace();
-
-    import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
-    import {
-      getAuth, setPersistence,
-      browserLocalPersistence, browserSessionPersistence,
-      signInWithEmailAndPassword, sendPasswordResetEmail,
-      onAuthStateChanged, reload, signOut
-    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-    import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
-
-    const auth = exportedAuth || getAuth(app);
-    const db   = exportedDb   || getFirestore(app);
-
-    const $ = (id) => document.getElementById(id);
-    const emailEl = $('email');
-    const pwEl = $('password');
-    const rememberEl = $('remember');
-    const statusEl = $('status');
-    const loginBtn = $('loginBtn');
-
-    const routeFor = (role) => role === 'trainer' ? 'trainer-dashboard.html' : 'client-dashboard.html'; /* CHANGED */
-
-    function friendlyAuthError(err){
-      const code = String(err?.code || '');
-      if (code.includes('invalid-credential')) return 'Email or password is incorrect.';
-      if (code.includes('user-not-found')) return 'No account found with that email.';
-      if (code.includes('wrong-password')) return 'Email or password is incorrect.';
-      if (code.includes('too-many-requests')) return 'Too many attempts. Please try again later.';
-      if (code.includes('network-request-failed')) return 'Network error. Check your connection.';
-      return err?.message || 'Something went wrong. Please try again.';
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        role: 'client',
+        roles: ['client'],
+        email: user.email || '',
+        fullName: user.displayName || '',
+        photoURL: user.photoURL || '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      try { sessionStorage.setItem('ironpump_lastRole','client'); localStorage.setItem('ironpump_lastRole','client'); } catch {}
+      return 'client';
     }
 
-    async function fetchUserRole(uid){
-      const snap = await getDoc(doc(db,'users',uid));
-      if(!snap.exists()) throw new Error('Profile not found. Please contact support.');
-      const data = snap.data() || {};
-      const role = Array.isArray(data.roles) ? String(data.roles[0] || 'client').toLowerCase()
-                                             : String(data.role || 'client').toLowerCase();
-      if(role!=='client' && role!=='trainer') throw new Error('Invalid role on profile.');
-      try { sessionStorage.setItem('ironpump_lastRole', role); localStorage.setItem('ironpump_lastRole', role); } catch {} /* NEW */
-      return role;
+    const data = snap.data() || {};
+    const role = Array.isArray(data.roles)
+      ? String(data.roles[0] || data.role || 'client').toLowerCase()
+      : String(data.role || 'client').toLowerCase();
+
+    const safeRole = (role === 'trainer') ? 'trainer' : 'client';
+    try { sessionStorage.setItem('ironpump_lastRole', safeRole); localStorage.setItem('ironpump_lastRole', safeRole); } catch {}
+    return safeRole;
+  }
+
+  // Email cleanup
+  if (emailEl){
+    emailEl.addEventListener('input',()=>{ emailEl.value=emailEl.value.replace(/\s+/g,''); });
+    emailEl.addEventListener('blur',()=>{ emailEl.value=emailEl.value.trim(); });
+  }
+
+  // Password toggle
+  $('togglePw').addEventListener('click',()=>{
+    const isPassword=pwEl.type==='password';
+    pwEl.type=isPassword?'text':'password';
+    const icon=isPassword?'eye-off':'eye';
+    const iconEl=document.querySelector('#togglePw i');
+    if(iconEl){ iconEl.setAttribute('data-feather',icon); feather.replace(); }
+  });
+
+  // Forgot password
+  $('forgotBtn').addEventListener('click',async()=>{
+    const email=emailEl.value.trim();
+    statusEl.textContent='';
+    if(!email){ statusEl.textContent='Enter your email first.'; return; }
+    try{
+      await sendPasswordResetEmail(auth,email);
+      statusEl.textContent='Password reset email sent.'; statusEl.style.color='var(--accent)';
+    }catch(e){
+      statusEl.textContent=friendlyAuthError(e); statusEl.style.color='#ff6b6b';
     }
+  });
 
-    // Email cleanup
-    if (emailEl){
-      emailEl.addEventListener('input',()=>{ emailEl.value=emailEl.value.replace(/\s+/g,''); });
-      emailEl.addEventListener('blur',()=>{ emailEl.value=emailEl.value.trim(); });
+  // Login submit
+  $('loginForm').addEventListener('submit',async(e)=>{
+    e.preventDefault();
+    const email=emailEl.value.trim();
+    const pass=pwEl.value;
+    if(!email||!pass){ statusEl.textContent='Please fill in email and password.'; return; }
+    statusEl.textContent='';
+    try{
+      loginBtn.disabled=true;
+      await setPersistence(auth, rememberEl.checked ? browserLocalPersistence : browserSessionPersistence);
+      const cred = await signInWithEmailAndPassword(auth,email,pass);
+      const role = await ensureUserProfileAndGetRole(cred.user);       // 🔧 changed
+      location.replace(routeFor(role));
+    }catch(e){
+      console.error('[Auth] signIn failed:',e.code,e.message);
+      statusEl.textContent=friendlyAuthError(e); statusEl.style.color='#ff6b6b';
+    }finally{
+      loginBtn.disabled=false;
     }
+  });
 
-    // Password toggle
-    $('togglePw').addEventListener('click',()=>{
-      const isPassword=pwEl.type==='password';
-      pwEl.type=isPassword?'text':'password';
-      const icon=isPassword?'eye-off':'eye';
-      const iconEl=document.querySelector('#togglePw i');
-      if(iconEl){ iconEl.setAttribute('data-feather',icon); feather.replace(); }
-    });
-
-    // Forgot password
-    $('forgotBtn').addEventListener('click',async()=>{
-      const email=emailEl.value.trim();
-      statusEl.textContent='';
-      if(!email){ statusEl.textContent='Enter your email first.'; return; }
-      try{
-        await sendPasswordResetEmail(auth,email);
-        statusEl.textContent='Password reset email sent.'; statusEl.style.color='var(--accent)';
-      }catch(e){
-        statusEl.textContent=friendlyAuthError(e); statusEl.style.color='#ff6b6b';
-      }
-    });
-
-    // Login submit
-    $('loginForm').addEventListener('submit',async(e)=>{
-      e.preventDefault();
-      const email=emailEl.value.trim();
-      const pass=pwEl.value;
-      if(!email||!pass){ statusEl.textContent='Please fill in email and password.'; return; }
-      statusEl.textContent='';
-      try{
-        loginBtn.disabled=true;
-        await setPersistence(auth,rememberEl.checked?browserLocalPersistence:browserSessionPersistence);
-        const cred=await signInWithEmailAndPassword(auth,email,pass);
-        const role=await fetchUserRole(cred.user.uid);
-        location.replace(routeFor(role));
-      }catch(e){
-        console.error('[Auth] signIn failed:',e.code,e.message);
-        statusEl.textContent=friendlyAuthError(e); statusEl.style.color='#ff6b6b';
-      }finally{
-        loginBtn.disabled=false;
-      }
-    });
-
-    // If already signed in, route out of login
-    onAuthStateChanged(auth,async(u)=>{
-      if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
-      try{ await reload(u); }catch{}
-      try{
-        const role=await fetchUserRole(u.uid);
-        location.replace(routeFor(role));
-      }catch(_){
-        try{ await signOut(auth); }catch{}
-        document.documentElement.classList.remove("__gate-hide");
-      }
-    });
-  </script>
-</body>
-</html>
+  // Already signed in → route out of login (also heals missing profile)
+  onAuthStateChanged(auth,async(u)=>{
+    if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
+    try{ await reload(u); }catch{}
+    try{
+      const role = await ensureUserProfileAndGetRole(u);               // 🔧 changed
+      location.replace(routeFor(role));
+    }catch(_){
+      try{ await signOut(auth); }catch{}
+      document.documentElement.classList.remove("__gate-hide");
+    }
+  });
+</script>
