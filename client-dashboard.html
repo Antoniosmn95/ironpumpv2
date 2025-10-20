@@ -208,32 +208,48 @@
       }
     });
 
+    // ----- Avatar defaults (gender-based) -----
+    const DEFAULT_MAN   = 'man.png';    // adjust path if needed
+    const DEFAULT_WOMAN = 'woman.png';  // adjust path if needed
+
     // Welcome header (via AuthGuard)
     const welcomeWrap = document.getElementById('welcomeWrap');
     const fullNameEl  = document.getElementById('userFullName');
     const avatarEl    = document.getElementById('userAvatar');
+
+    // Helper to select default by gender
+    function genderDefault(g){
+      return (String(g||'male').toLowerCase() === 'female') ? DEFAULT_WOMAN : DEFAULT_MAN;
+    }
 
     window.AuthGuard?.onAuth?.(async (user) => {
       if (!user) {
         welcomeWrap.classList.add('hidden');
         return;
       }
-      const p = await window.AuthGuard.getProfile();
+      // Prefer Firestore profile fields saved at signup
+      // (photoURL, fullName, gender) and fall back to Firebase Auth fields.
+      const p = await window.AuthGuard.getProfile?.();
+
       const displayName = p?.fullName || user.displayName || user.email || 'Athlete';
-      const photo = p?.photoURL || user.photoURL || '';
+      const gender = (p?.gender || '').toLowerCase();
+      const defaultPhoto = genderDefault(gender);
+
+      // Choose the best photo: Firestore photoURL (uploaded or gender default saved at signup),
+      // else Auth photoURL, else current gender default.
+      const candidatePhoto = (p?.photoURL && p.photoURL.trim()) ? p.photoURL
+                            : (user.photoURL && String(user.photoURL).trim()) ? user.photoURL
+                            : defaultPhoto;
 
       fullNameEl.textContent = displayName;
-      if (photo) {
-        avatarEl.src = photo;
-      } else {
-        const initial = displayName.trim().charAt(0).toUpperCase();
-        avatarEl.src = `data:image/svg+xml;utf8,` + encodeURIComponent(`
-          <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
-            <rect width='100%' height='100%' fill='#232323'/>
-            <text x='50%' y='55%' text-anchor='middle' font-size='34' font-family='Inter' fill='#97FB57'>${initial}</text>
-          </svg>
-        `);
-      }
+      avatarEl.src = candidatePhoto;
+
+      // If candidate fails to load (broken URL), force gender default.
+      avatarEl.onerror = () => {
+        avatarEl.onerror = null; // prevent loop
+        avatarEl.src = defaultPhoto;
+      };
+
       welcomeWrap.classList.remove('hidden');
     });
 
@@ -321,7 +337,7 @@
     yearSelect.addEventListener('change',  (e) => { viewYear  = Number(e.target.value);  renderCalendar(); });
 
     // Export Month (empty table)
-    exportMonthBtn.addEventListener('click', () => {
+    document.getElementById('exportMonthPDF').addEventListener('click', () => {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       doc.setFontSize(18);
