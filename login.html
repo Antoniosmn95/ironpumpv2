@@ -9,9 +9,13 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/feather-icons"></script>
 
-  <!-- Prevent flicker while pre-auth gate decides -->
+  <!-- Prevent flicker while pre-auth gate decides (with safety unhide) -->
   <style>html.__gate-hide body{visibility:hidden}</style>
-  <script>document.documentElement.classList.add("__gate-hide")</script>
+  <script>
+    document.documentElement.classList.add("__gate-hide");
+    // Safety: if anything fails, unhide after 2s
+    setTimeout(()=>document.documentElement.classList.remove("__gate-hide"), 2000);
+  </script>
 
   <!-- Firebase init -->
   <script type="module" src="firebase-init.js"></script>
@@ -24,25 +28,30 @@
 
     const auth = exportedAuth || getAuth(app);
     const db   = exportedDb   || getFirestore(app);
+    const routeFor = (role) => role === "trainer" ? "trainer-dashboard.html" : "client-dashboard.html";
 
-    const routeFor = (role) => role === "trainer" ? "trainer-dashboard.html" : "client-dashboard.html"; /* CHANGED */
-
-    onAuthStateChanged(auth, async (u)=>{
-      if(!u){ document.documentElement.classList.remove("__gate-hide"); return; }
-      try{ await reload(u); }catch{}
-      try{
-        const snap = await getDoc(doc(db, "users", u.uid));
-        if (snap.exists()){
-          const d = snap.data() || {};
+    try {
+      onAuthStateChanged(auth, async (u)=>{
+        try { if (u) await reload(u); } catch {}
+        if (!u) {
+          document.documentElement.classList.remove("__gate-hide");
+          return;
+        }
+        try {
+          const snap = await getDoc(doc(db, "users", u.uid));
+          const d = snap.exists() ? (snap.data() || {}) : {};
           const role = Array.isArray(d.roles) ? String(d.roles[0]||"client").toLowerCase()
                                               : String(d.role||"client").toLowerCase();
           try { sessionStorage.setItem("ironpump_lastRole", role); localStorage.setItem("ironpump_lastRole", role); } catch {}
           location.replace(routeFor(role));
-          return;
+        } catch {
+          // If Firestore read fails, just show the form
+          document.documentElement.classList.remove("__gate-hide");
         }
-      }catch(_){}
-      location.replace("client-dashboard.html"); /* CHANGED */
-    });
+      });
+    } catch {
+      document.documentElement.classList.remove("__gate-hide");
+    }
   </script>
 
   <style>
@@ -115,7 +124,10 @@
   </main>
 
   <script type="module">
-    feather.replace();
+    // Guard feather usage to avoid "feather is not defined"
+    if (window.feather && typeof window.feather.replace === "function") {
+      try { window.feather.replace(); } catch {}
+    }
 
     import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
     import {
@@ -136,7 +148,7 @@
     const statusEl = $('status');
     const loginBtn = $('loginBtn');
 
-    const routeFor = (role) => role === 'trainer' ? 'trainer-dashboard.html' : 'client-dashboard.html'; /* CHANGED */
+    const routeFor = (role) => role === 'trainer' ? 'trainer-dashboard.html' : 'client-dashboard.html';
 
     function friendlyAuthError(err){
       const code = String(err?.code || '');
@@ -155,7 +167,7 @@
       const role = Array.isArray(data.roles) ? String(data.roles[0] || 'client').toLowerCase()
                                              : String(data.role || 'client').toLowerCase();
       if(role!=='client' && role!=='trainer') throw new Error('Invalid role on profile.');
-      try { sessionStorage.setItem('ironpump_lastRole', role); localStorage.setItem('ironpump_lastRole', role); } catch {} /* NEW */
+      try { sessionStorage.setItem('ironpump_lastRole', role); localStorage.setItem('ironpump_lastRole', role); } catch {}
       return role;
     }
 
@@ -171,7 +183,7 @@
       pwEl.type=isPassword?'text':'password';
       const icon=isPassword?'eye-off':'eye';
       const iconEl=document.querySelector('#togglePw i');
-      if(iconEl){ iconEl.setAttribute('data-feather',icon); feather.replace(); }
+      if(iconEl){ iconEl.setAttribute('data-feather',icon); if (window.feather) window.feather.replace(); }
     });
 
     // Forgot password
