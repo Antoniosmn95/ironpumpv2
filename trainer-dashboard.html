@@ -8,7 +8,6 @@
   <!-- Firebase + Auth Guard (modular app + guard) -->
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="auth-guard.js"></script>
-  <!-- 🔌 You can remove logout.js and use AuthGuard.signOut; leaving it out now -->
 
   <!-- Tailwind + Feather -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -52,7 +51,6 @@
 
       <!-- Right: user chip -->
       <div class="flex items-center gap-3">
-        <!-- Trainers should not go to signup; point to a profile page instead -->
         <a href="profile-trainer.html" class="btn-ghost px-3 py-2 rounded-lg hidden" id="completeProfileBtn">
           Complete Profile
         </a>
@@ -113,7 +111,6 @@
 
       <!-- Right column: Add client + Pending -->
       <aside class="space-y-4">
-        <!-- Add client -->
         <section class="panel rounded-xl p-4">
           <h3 class="font-semibold mb-2">Add Client by Email</h3>
           <p class="text-sm text-muted mb-3">Links an existing signed-up user to you (sets <code>trainerId</code> on their profile).</p>
@@ -126,7 +123,6 @@
           <div id="addClientMsg" class="text-sm mt-2"></div>
         </section>
 
-        <!-- Pending requests -->
         <section class="panel rounded-xl p-4">
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-semibold">Pending Join Requests</h3>
@@ -141,7 +137,6 @@
       </aside>
     </div>
 
-    <!-- Empty state CTA when no clients -->
     <section id="emptyCta" class="panel rounded-xl p-4 mt-4 hidden">
       <div class="empty-cta">
         <p class="text-muted">No clients yet. You can still build programs now and assign them later.</p>
@@ -208,6 +203,11 @@
     const welcomeEmail = el('welcomeEmail');
     const signOutBtn = el('signOutBtn');
 
+    // Gender-based defaults
+    const DEFAULT_MAN   = 'man.png';    // adjust path if needed
+    const DEFAULT_WOMAN = 'woman.png';  // adjust path if needed
+    const genderDefault = (g)=> (String(g||'male').toLowerCase()==='female' ? DEFAULT_WOMAN : DEFAULT_MAN);
+
     // KPIs & lists
     const kpiClientsEl  = el('kpiClients');
     const kpiActiveEl   = el('kpiActive');
@@ -261,14 +261,25 @@
 
       const displayName = trainerProfile?.fullName || user.displayName || '';
       const email = trainerProfile?.email || user.email || '';
-      const photoURL = trainerProfile?.photoURL || user.photoURL || '';
+      const gender = (trainerProfile?.gender || '').toLowerCase();
+
+      // Choose best photo: Firestore photoURL (uploaded or saved default) -> Auth photoURL -> gender default
+      const defaultPhoto = genderDefault(gender);
+      const candidatePhoto =
+        (trainerProfile?.photoURL && trainerProfile.photoURL.trim()) ? trainerProfile.photoURL :
+        (user.photoURL && String(user.photoURL).trim()) ? user.photoURL :
+        defaultPhoto;
 
       trainerNameEl.textContent = displayName ? `Hi, ${displayName}` : '';
       if(!trainerProfile?.fullName) completeProfileBtn.classList.remove('hidden');
 
       welcomeName.textContent = displayName ? `Welcome ${displayName}` : 'Welcome';
       welcomeEmail.textContent = email || '';
-      userAvatar.src = photoURL || svgInitials(displayName || email);
+      userAvatar.src = candidatePhoto;
+
+      // If the URL is broken, fallback to gender default
+      userAvatar.onerror = ()=>{ userAvatar.onerror = null; userAvatar.src = defaultPhoto; };
+
       userChip.classList.remove('hidden');
 
       await loadClients();
@@ -277,7 +288,7 @@
       feather.replace();
     });
 
-    // ------- Helpers to query Firestore (modular) -------
+    // ------- Helpers to query Firestore -------
     const usersCol = collection(db, 'users');
 
     async function getTrainerClientsSnapshot(uid){
@@ -347,7 +358,9 @@
         return;
       }
       clientsListEl.innerHTML = list.map(c=>{
-        const avatar = c.photoURL || ('https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57');
+        const avatar = (c.photoURL && c.photoURL.trim())
+          ? c.photoURL
+          : genderDefault(c.gender); // gender fallback if no uploaded photo
         return `
           <div class="p-3 flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -475,7 +488,9 @@
       if(!docSnap.exists()){ alert('Client not found'); return; }
       const c = { id: uid, ...docSnap.data() };
 
-      const avatar = c.photoURL || ('https://ui-avatars.com/api/?name='+encodeURIComponent(c.fullName||c.email||'U')+'&background=171717&color=97FB57');
+      const avatar = (c.photoURL && c.photoURL.trim())
+        ? c.photoURL
+        : genderDefault(c.gender);
 
       // Support old/new field names
       const age = c.age ?? '—';
@@ -542,7 +557,7 @@
       clientModal.classList.remove('hidden');
       feather.replace();
     }
-    window.openClient = openClient; // for safety if something still calls it globally
+    window.openClient = openClient;
 
     [closeClientModal, closeClientModal2].forEach(b=> b.addEventListener('click', ()=> clientModal.classList.add('hidden')));
     clientModal.addEventListener('click', (e)=>{ if(e.target===clientModal) clientModal.classList.add('hidden'); });
