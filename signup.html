@@ -65,6 +65,7 @@
     @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
     @keyframes pop { from { transform: translateY(6px) scale(.98); opacity:.9 } to { transform: translateY(0) scale(1); opacity:1 } }
     .hidden-block{ display:none; }
+    .avatar-preview{ width:76px; height:76px; border-radius:.75rem; object-fit:cover; border:1px solid rgba(144,144,144,.35); background:#111; }
   </style>
 </head>
 <body class="min-h-[100svh] flex items-start justify-center p-3 md:p-4">
@@ -188,6 +189,20 @@
           </div>
         </div>
 
+        <!-- Client Photo -->
+        <div class="form-grid">
+          <div class="stack">
+            <label for="c_photo">Profile Photo (optional)</label>
+            <input id="c_photo" type="file" accept="image/*" class="input"/>
+            <small class="help">Max 5 MB. If omitted: uses gender default (man.png / woman.png).</small>
+          </div>
+          <div class="stack items-start">
+            <label class="text-xs">Preview</label>
+            <img id="c_preview" class="avatar-preview" alt="Preview" src="man.png">
+            <small class="help">Preview switches with gender/defaults.</small>
+          </div>
+        </div>
+
         <div class="stack">
           <label for="c_extra" class="text-xs">Additional Info</label>
           <textarea id="c_extra" rows="3" class="input" placeholder="Any injuries, goals, notes…"></textarea>
@@ -295,6 +310,20 @@
           </div>
         </div>
 
+        <!-- Trainer Photo -->
+        <div class="form-grid">
+          <div class="stack">
+            <label for="t_photo">Profile Photo (optional)</label>
+            <input id="t_photo" type="file" accept="image/*" class="input"/>
+            <small class="help">Max 5 MB. If omitted: uses gender default (man.png / woman.png).</small>
+          </div>
+          <div class="stack items-start">
+            <label class="text-xs">Preview</label>
+            <img id="t_preview" class="avatar-preview" alt="Preview" src="man.png">
+            <small class="help">Preview switches with gender/defaults.</small>
+          </div>
+        </div>
+
         <div class="stack">
           <label for="t_bio">Bio</label>
           <textarea id="t_bio" rows="4" class="input" placeholder="Short introduction, coaching style, achievements…"></textarea>
@@ -332,7 +361,7 @@
     import { app, auth as exportedAuth, db as exportedDb } from './firebase-init.js';
     import { getAuth, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged, reload } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
     import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
-    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
+    import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-storage.js';
 
     const auth = exportedAuth || getAuth(app);
     const db   = exportedDb   || getFirestore(app);
@@ -413,7 +442,6 @@
     // --- DOB Range Helpers ---
     function dateToYMD(d){ return d.toISOString().slice(0,10); }
     function setDOBRange(inputId, minAgeYears, maxAgeYears){
-      // minAgeYears = oldest allowed (e.g., 80), maxAgeYears = youngest allowed (e.g., 7)
       const el = $(inputId); if(!el) return;
       const now = new Date();
       const minDate = new Date(now.getFullYear() - minAgeYears, now.getMonth(), now.getDate()); // earliest DOB
@@ -464,6 +492,78 @@
     }
     function hideOverlay(){ $('welcomeOverlay').style.display = 'none'; }
 
+    // ---------- AVATAR HELPERS ----------
+    const DEFAULT_MAN   = 'man.png';   // put these files next to this HTML
+    const DEFAULT_WOMAN = 'woman.png'; // or change to your assets path
+
+    function slugifyName(name){
+      return (name||'user')
+        .toLowerCase()
+        .replace(/[_]+/g,' ')
+        .replace(/[^a-z\u0600-\u06FF0-9\s-]/g,'')
+        .replace(/\s+/g,' ')
+        .trim()
+        .replace(/\s/g,'-');
+    }
+
+    function extFromFile(file){
+      if (!file) return 'jpg';
+      const t = (file.type||'').toLowerCase();
+      if (t.includes('png')) return 'png';
+      if (t.includes('webp')) return 'webp';
+      if (t.includes('gif')) return 'gif';
+      return 'jpg';
+    }
+
+    async function getUniqueAvatarRef(slug, ext){
+      // Checks existing files in /avatars and adds -1, -2… suffix if needed
+      const baseRef = ref(storage, 'avatars');
+      const list = await listAll(baseRef);
+      let maxIdx = -1;
+      const re = new RegExp(`^${slug}(?:-(\\d+))?\\.${ext}$`, 'i');
+      list.items.forEach(it=>{
+        const m = it.name.match(re);
+        if (m){
+          const n = m[1] ? parseInt(m[1],10) : 0;
+          if (n > maxIdx) maxIdx = n;
+        }
+      });
+      const nextName = (maxIdx < 0) ? `${slug}.${ext}` : `${slug}-${maxIdx+1}.${ext}`;
+      return ref(storage, `avatars/${nextName}`);
+    }
+
+    function hookPreview(fileInputId, genderRadioName, previewImgId){
+      const input = $(fileInputId);
+      const preview = $(previewImgId);
+      function setDefaultByGender(){
+        const gender = (document.querySelector(`input[name="${genderRadioName}"]:checked`)||{}).value || 'male';
+        preview.src = (gender === 'female') ? DEFAULT_WOMAN : DEFAULT_MAN;
+      }
+      // Initial default
+      setDefaultByGender();
+
+      // On gender change, if no file selected, update preview to default
+      document.querySelectorAll(`input[name="${genderRadioName}"]`).forEach(r=>{
+        r.addEventListener('change', ()=>{
+          if (!input.files || input.files.length === 0) setDefaultByGender();
+        });
+      });
+
+      // On file select -> show local preview
+      input.addEventListener('change', ()=>{
+        if (input.files && input.files[0]){
+          const f = input.files[0];
+          const url = URL.createObjectURL(f);
+          preview.src = url;
+        }else{
+          setDefaultByGender();
+        }
+      });
+    }
+
+    hookPreview('c_photo', 'c_gender', 'c_preview');
+    hookPreview('t_photo', 't_gender', 't_preview');
+
     // =========== CLIENT SUBMIT ===========
     $('c_createBtn').addEventListener('click', async (e)=>{
       e.preventDefault();
@@ -493,7 +593,7 @@
       const country = $('c_country').value.trim();
       const languages = $('c_languages').value.trim();
       const where = (document.querySelector('input[name="c_where"]:checked')||{}).value || 'home';
-      const gender = (document.querySelector('input[name="c_gender"]:checked')||{}).value || '';
+      const gender = (document.querySelector('input[name="c_gender"]:checked')||{}).value || 'male';
       const days = Number($('c_days').value || 4);
       const extra = $('c_extra').value.trim();
       const photoFile = document.getElementById('c_photo')?.files?.[0];
@@ -506,17 +606,21 @@
         const cred = await createUserWithEmailAndPassword(auth, email, p1);
         const uid = cred.user.uid;
 
-        // Photo + profile
+        // Decide photoURL: uploaded => Firebase Storage (renamed by full name);
+        // otherwise -> gender default asset (local path).
         let photoURL = '';
         if (photoFile){
           if (photoFile.size > 5*1024*1024) throw new Error('Image too large (max 5 MB).');
-          const r = ref(storage, `users/${uid}/profile.jpg`);
-          await uploadBytes(r, photoFile, { contentType: photoFile.type || 'image/jpeg' });
-          photoURL = await getDownloadURL(r);
-          await updateProfile(cred.user, { displayName: fullName || '', photoURL });
+          const ext = extFromFile(photoFile);
+          const slug = slugifyName(fullName || uid);
+          const avatarRef = await getUniqueAvatarRef(slug, ext);
+          await uploadBytes(avatarRef, photoFile, { contentType: photoFile.type || 'image/'+ext });
+          photoURL = await getDownloadURL(avatarRef);
         }else{
-          await updateProfile(cred.user, { displayName: fullName || '' });
+          photoURL = (gender === 'female') ? DEFAULT_WOMAN : DEFAULT_MAN;
         }
+
+        await updateProfile(cred.user, { displayName: fullName || '', photoURL });
 
         await setDoc(doc(db,'users',uid), {
           role:'client', roles:['client'],
@@ -567,7 +671,7 @@
       const fullName   = $('t_fullName').value.trim();
       const phone      = $('t_phone').value.trim();
       const country    = $('t_country').value;
-      const gender     = (document.querySelector('input[name="t_gender"]:checked')||{}).value || '';
+      const gender     = (document.querySelector('input[name="t_gender"]:checked')||{}).value || 'male';
       const languages  = $('t_languages').value.trim();
       const org        = $('t_org').value.trim();
       const years      = Number($('t_years').value); // required, min 0
@@ -588,11 +692,16 @@
         let photoURL = '';
         if (photoFile){
           if (photoFile.size > 5*1024*1024) throw new Error('Image too large (max 5 MB).');
-          const r = ref(storage, `users/${uid}/profile.jpg`);
-          await uploadBytes(r, photoFile, { contentType: photoFile.type || 'image/jpeg' });
-          photoURL = await getDownloadURL(r);
+          const ext = extFromFile(photoFile);
+          const slug = slugifyName(fullName || uid);
+          const avatarRef = await getUniqueAvatarRef(slug, ext);
+          await uploadBytes(avatarRef, photoFile, { contentType: photoFile.type || 'image/'+ext });
+          photoURL = await getDownloadURL(avatarRef);
+        }else{
+          photoURL = (gender === 'female') ? DEFAULT_WOMAN : DEFAULT_MAN;
         }
-        await updateProfile(cred.user, { displayName: fullName, photoURL: photoURL || null });
+
+        await updateProfile(cred.user, { displayName: fullName, photoURL });
 
         await setDoc(doc(db,'users',uid), {
           role:'trainer', roles:['trainer'],
@@ -601,7 +710,7 @@
           organization: org, yearsExperience: years,
           specialties: splitCSV(specialties), certifications: splitCSV(certs),
           bio, social: social || '',
-          photoURL: photoURL || '',
+          photoURL,
           createdAt: serverTimestamp(), updatedAt: serverTimestamp()
         }, { merge:true });
 
